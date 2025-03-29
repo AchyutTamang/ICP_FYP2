@@ -1,0 +1,7 @@
+Backend/Gyansort_Env/*
+
+.vscode/*
+
+.env
+
+secrets.txt

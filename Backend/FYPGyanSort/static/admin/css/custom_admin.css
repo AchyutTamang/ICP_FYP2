@@ -1,0 +1,30 @@
+/* Custom styles for admin interface */
+.button {
+    display: inline-block;
+    padding: 5px 10px;
+    background-color: #00FF40;
+    color: black;
+    text-decoration: none;
+    border-radius: 4px;
+    margin: 2px;
+}
+
+.button:hover {
+    background-color: #00DD30;
+}
+
+/* Status indicators */
+.status-verified {
+    color: #00FF40;
+    font-weight: bold;
+}
+
+.status-pending {
+    color: #FFA500;
+    font-weight: bold;
+}
+
+.status-rejected {
+    color: #FF0000;
+    font-weight: bold;
+}
