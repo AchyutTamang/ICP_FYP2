@@ -40,6 +40,8 @@ EXTERNAL_APPS =[
     'rest_framework_simplejwt.token_blacklist',
     'students',
     'instructors',
+    'courses',
+    'payments',
     
     
 ]
