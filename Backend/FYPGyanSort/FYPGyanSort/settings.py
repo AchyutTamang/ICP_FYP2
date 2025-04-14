@@ -53,13 +53,19 @@ INSTALLED_APPS += EXTERNAL_APPS  # Now INSTALLED_APPS contains both internal and
 AUTH_USER_MODEL = "students.Student"
 
  
+# REST_FRAMEWORK = {
+#     "DEFAULT_AUTHENTICATION_CLASSES": (
+#         "rest_framework_simplejwt.authentication.JWTAuthentication",
+#     ),
+#     # "DEFAULT_PERMISSION_CLASSES": (
+#     #     "rest_framework.permissions.IsAuthenticated",
+#     # ),
+# }
+
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
-    ),
-    # "DEFAULT_PERMISSION_CLASSES": (
-    #     "rest_framework.permissions.IsAuthenticated",
-    # ),
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
 }
 
 MIDDLEWARE = [
@@ -184,8 +190,8 @@ AUTHENTICATION_BACKENDS = [
 # Add JWT settings
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=20),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=10),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'USER_ID_FIELD': 'id',  # Default user ID field
@@ -194,8 +200,17 @@ SIMPLE_JWT = {
     'TOKEN_TYPE_CLAIM': 'token_type',
 }
 
+# File Upload Settings
+DATA_UPLOAD_MAX_MEMORY_SIZE = 314572800  # 300MB in bytes
+FILE_UPLOAD_MAX_MEMORY_SIZE = 314572800  # 300MB in bytes
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# For handling large file uploads in production
+FILE_UPLOAD_HANDLERS = [
+    'django.core.files.uploadhandler.MemoryFileUploadHandler',
+    'django.core.files.uploadhandler.TemporaryFileUploadHandler',
+]
 
 # Email settings (for verification)
 # EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
