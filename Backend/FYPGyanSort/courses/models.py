@@ -75,3 +75,58 @@ class Course(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+# ... existing code ...
+
+class Module(models.Model):
+    course = models.ForeignKey(Course, related_name='modules', on_delete=models.CASCADE)
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order']
+
+    def __str__(self):
+        return f"{self.course.title} - {self.title}"
+
+class Lesson(models.Model):
+    module = models.ForeignKey(Module, related_name='lessons', on_delete=models.CASCADE)
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    order = models.PositiveIntegerField(default=0)
+    duration = models.PositiveIntegerField(help_text="Duration in minutes", default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order']
+
+    def __str__(self):
+        return self.title
+
+class Content(models.Model):
+    CONTENT_TYPES = (
+        ('video', 'Video'),
+        ('document', 'Document'),
+        ('quiz', 'Quiz'),
+        ('assignment', 'Assignment'),
+    )
+    
+    lesson = models.ForeignKey(Lesson, related_name='contents', on_delete=models.CASCADE)
+    title = models.CharField(max_length=200)
+    content_type = models.CharField(max_length=20, choices=CONTENT_TYPES)
+    file = models.FileField(upload_to='course_content/', blank=True, null=True)
+    cloudfront_url = models.URLField(blank=True, null=True)
+    text_content = models.TextField(blank=True)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order']
+
+    def __str__(self):
+        return self.title
