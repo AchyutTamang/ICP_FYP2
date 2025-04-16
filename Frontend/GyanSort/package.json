@@ -16,13 +16,15 @@
     "@mui/icons-material": "^7.0.0",
     "@mui/material": "^7.0.2",
     "axios": "^1.8.4",
+    "framer-motion": "^12.7.3",
     "jwt-decode": "^4.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.5.0",
     "react-toastify": "^11.0.5",
-    "redux": "^5.0.1"
+    "redux": "^5.0.1",
+    "styled-components": "^6.1.17"
   },
   "devDependencies": {
     "@eslint/js": "^9.19.0",
