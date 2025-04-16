@@ -23,8 +23,6 @@ class CourseSerializer(serializers.ModelSerializer):
                  'demo_video', 'reviews', 'is_active', 'created_at']
 
 
-# ... existing code ...
-
 class ContentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Content

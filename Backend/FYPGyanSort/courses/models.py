@@ -111,8 +111,6 @@ class Content(models.Model):
     CONTENT_TYPES = (
         ('video', 'Video'),
         ('document', 'Document'),
-        ('quiz', 'Quiz'),
-        ('assignment', 'Assignment'),
     )
     
     lesson = models.ForeignKey(Lesson, related_name='contents', on_delete=models.CASCADE)
