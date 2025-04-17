@@ -42,6 +42,7 @@ EXTERNAL_APPS =[
     'instructors',
     'courses',
     'payments',
+    'cart',
     
     
 ]
@@ -200,15 +201,9 @@ SIMPLE_JWT = {
     'TOKEN_TYPE_CLAIM': 'token_type',
 }
 
-# ... existing settings ...
+ 
 
-# AWS Settings
-AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
-AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
-AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME', 'us-east-1')
-CLOUDFRONT_DOMAIN = os.getenv('CLOUDFRONT_DOMAIN')
-AWS_S3_CUSTOM_DOMAIN = f'{CLOUDFRONT_DOMAIN}'
+
 
 # File Upload Settings
 DATA_UPLOAD_MAX_MEMORY_SIZE = 314572800  # 300MB in bytes
@@ -238,3 +233,14 @@ EMAIL_PORT = os.getenv('EMAIL_PORT')
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+
+# for file storages 
+DEFAULT_FILE_STORAGE = 'storages.backends.S3boto3Storage'
+
+# AWS Settings
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
+AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME', 'us-east-1')
+CLOUDFRONT_DOMAIN = os.getenv('CLOUDFRONT_DOMAIN')
+AWS_S3_CUSTOM_DOMAIN = f'{CLOUDFRONT_DOMAIN}'
