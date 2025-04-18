@@ -43,7 +43,7 @@ EXTERNAL_APPS =[
     'courses',
     'payments',
     'cart',
-    
+    'forums',    
     
 ]
 
