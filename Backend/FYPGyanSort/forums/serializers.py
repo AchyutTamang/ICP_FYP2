@@ -42,10 +42,10 @@ class ForumMessageSerializer(serializers.ModelSerializer):
     
     def get_sender_name(self, obj):
         sender = obj.sender
-        if obj.sender_type == 'instructor':
-            return f"{sender.first_name} {sender.last_name} (Instructor)"
+        if obj.sender_type == 'instructor': 
+            return f"{sender.fullname} (Instructor)"
         else:
-            return f"{sender.first_name} {sender.last_name} (Student)"
+            return f"{sender.fullname} (Student)"
     
     def get_attachments(self, obj):
         attachments = ForumAttachment.objects.filter(message=obj)

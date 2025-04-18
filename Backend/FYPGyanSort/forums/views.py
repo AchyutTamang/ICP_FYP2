@@ -5,6 +5,7 @@ from django.db.models import Q
 from .models import Forum, ForumMembership, ForumMessage, ForumAttachment
 from .serializers import ForumSerializer, ForumMembershipSerializer, ForumMessageSerializer, ForumAttachmentSerializer
 from .permissions import IsVerifiedInstructor, IsVerifiedStudent, IsForumMember
+from rest_framework.exceptions import PermissionDenied
 
 class ForumViewSet(viewsets.ModelViewSet):
     serializer_class = ForumSerializer
@@ -28,43 +29,140 @@ class ForumViewSet(viewsets.ModelViewSet):
         return Forum.objects.none()
     
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user.instructor)
+        user = self.request.user
+        
+        if hasattr(user, 'instructor'):
+            sender_type = 'instructor'
+            sender_id = user.instructor.id
+        elif hasattr(user, 'student'):
+            sender_type = 'student'
+            sender_id = user.student.id
+        else:
+            # Fix: Use the correct PermissionDenied from exceptions
+            raise PermissionDenied("Invalid user type")
+        
+        serializer.save(sender_type=sender_type, sender_id=sender_id)
     
-    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated(), IsVerifiedStudent()])
-    def join(self, request, pk=None):
-        forum = self.get_object()
-        student = request.user.student
+    @action(detail=True, methods=['post'], url_path='join')
+    def join(self, request, pk=None, forum_id=None):
+        # Use either pk or forum_id depending on your URL configuration
+        forum_id_to_use = forum_id if forum_id is not None else pk
         
-        # Check if student is already a member
-        if ForumMembership.objects.filter(forum=forum, student=student).exists():
-            return Response({"error": "You are already a member of this forum"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Create membership
-        membership = ForumMembership(forum=forum, student=student)
-        membership.save()
-        
-        return Response({"message": "Successfully joined the forum"}, status=status.HTTP_201_CREATED)
-    
-    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated()])
-    def leave(self, request, pk=None):
-        forum = self.get_object()
-        
-        if hasattr(request.user, 'student'):
+        try:
+            forum = Forum.objects.get(pk=forum_id_to_use)
+            
+            # Debug information
+            print(f"User attempting to join forum: {request.user.email}")
+            print(f"Has student attribute: {hasattr(request.user, 'student')}")
+            
+            # Check if the user is a student
+            if not hasattr(request.user, 'student'):
+                # Try to find if this user has a student profile by email
+                from students.models import Student
+                try:
+                    student = Student.objects.get(email=request.user.email)
+                    print(f"Found student by email: {student}")
+                    # Link the student to the user for this request
+                    setattr(request.user, 'student', student)
+                except Student.DoesNotExist:
+                    print(f"No student profile found for email: {request.user.email}")
+                    return Response({"detail": "Only students can join forums. Please create a student profile first."}, 
+                                   status=status.HTTP_400_BAD_REQUEST)
+            
             student = request.user.student
+            print(f"Student found: {student}")
+            
+            # Verify that the student is verified
+            if not student.email_verified:
+                return Response({"detail": "Your student account must be verified before joining forums."}, 
+                               status=status.HTTP_400_BAD_REQUEST)
+            
+            # Check if the student is already a member
+            if ForumMembership.objects.filter(forum=forum, student=student, is_active=True).exists():
+                return Response({"detail": "You are already a member of this forum."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Create membership
+            membership = ForumMembership.objects.create(
+                forum=forum,
+                student=student,
+                is_active=True
+            )
+            
+            serializer = ForumMembershipSerializer(membership)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Forum.DoesNotExist:
+            return Response({"detail": "Forum not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"Error in join forum: {str(e)}")
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['post'], url_path='leave')
+    def leave(self, request, pk=None, forum_id=None):
+        try:
+            # Use either pk or forum_id depending on your URL configuration
+            forum_id_to_use = forum_id if forum_id is not None else pk
+            
+            # Directly fetch the forum by ID instead of using get_object()
+            forum = Forum.objects.get(pk=forum_id_to_use)
+            
+            # Debug information
+            print(f"User attempting to leave forum: {request.user.email}")
+            print(f"Has student attribute: {hasattr(request.user, 'student')}")
+            
+            # Check if the user is a student
+            if not hasattr(request.user, 'student'):
+                # Try to find if this user has a student profile by email
+                from students.models import Student
+                try:
+                    student = Student.objects.get(email=request.user.email)
+                    print(f"Found student by email: {student}")
+                    # Link the student to the user for this request
+                    setattr(request.user, 'student', student)
+                except Student.DoesNotExist:
+                    print(f"No student profile found for email: {request.user.email}")
+                    return Response({"error": "Only students can leave forums"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            student = request.user.student
+            print(f"Student found: {student}")
             
             try:
+                # First, get the membership record
                 membership = ForumMembership.objects.get(forum=forum, student=student)
-                membership.is_active = False
-                membership.save()
+                print(f"Found membership ID: {membership.id}, current is_active: {membership.is_active}")
+                
+                # Delete and recreate the membership with is_active=False
+                membership_id = membership.id
+                membership.delete()
+                print(f"Deleted membership with ID: {membership_id}")
+                
+                # Create a new membership with is_active=False
+                new_membership = ForumMembership.objects.create(
+                    id=membership_id,
+                    forum=forum,
+                    student=student,
+                    is_active=False
+                )
+                print(f"Created new membership with ID: {new_membership.id}, is_active: {new_membership.is_active}")
+                
+                # Verify in the database
+                verification = ForumMembership.objects.get(id=membership_id)
+                print(f"Verification: membership ID {verification.id}, is_active: {verification.is_active}")
+                
                 return Response({"message": "Successfully left the forum"}, status=status.HTTP_200_OK)
             except ForumMembership.DoesNotExist:
                 return Response({"error": "You are not a member of this forum"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response({"error": "Only students can leave forums"}, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                print(f"Database error: {str(e)}")
+                return Response({"error": f"Database error: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+        except Forum.DoesNotExist:
+            return Response({"detail": "Forum not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"Error in leave forum: {str(e)}")
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class ForumMessageViewSet(viewsets.ModelViewSet):
     serializer_class = ForumMessageSerializer
-    permission_classes = [permissions.IsAuthenticated()]
+    permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
         user = self.request.user
@@ -86,24 +184,81 @@ class ForumMessageViewSet(viewsets.ModelViewSet):
             return ForumMessage.objects.none()
         
         return ForumMessage.objects.filter(forum_id=forum_id).order_by('sent_at')
-    
+
     def perform_create(self, serializer):
         user = self.request.user
         
-        if hasattr(user, 'instructor'):
-            sender_type = 'instructor'
-            sender_id = user.instructor.id
-        elif hasattr(user, 'student'):
-            sender_type = 'student'
-            sender_id = user.student.id
-        else:
-            raise permissions.PermissionDenied("Invalid user type")
+        # Get the forum ID from the request data
+        forum_id = self.request.data.get('forum_id') or self.request.data.get('forum')
         
-        serializer.save(sender_type=sender_type, sender_id=sender_id)
+        print(f"Request data: {self.request.data}")
+        print(f"Looking for forum with ID: {forum_id}")
+        
+        # Validate that forum exists
+        try:
+            forum = Forum.objects.get(id=forum_id)
+            print(f"Found forum: {forum}")
+            
+            # Check if the user is a student or instructor
+            if not hasattr(user, 'student') and not hasattr(user, 'instructor'):
+                # Try to find if this user has a student profile by email
+                from students.models import Student
+                try:
+                    student = Student.objects.get(email=user.email)
+                    print(f"Found student by email: {student}")
+                    # Link the student to the user for this request
+                    setattr(user, 'student', student)
+                except Student.DoesNotExist:
+                    # Try to find if this user has an instructor profile by email
+                    from instructors.models import Instructor
+                    try:
+                        instructor = Instructor.objects.get(email=user.email)
+                        print(f"Found instructor by email: {instructor}")
+                        # Link the instructor to the user for this request
+                        setattr(user, 'instructor', instructor)
+                    except Instructor.DoesNotExist:
+                        print(f"User {user.email} has no instructor or student profile")
+                        raise PermissionDenied("Invalid user type")
+            
+            # Check if user has permission to post in this forum
+            if hasattr(user, 'instructor'):
+                # Instructors can post if they created the forum
+                if forum.created_by != user.instructor:
+                    print(f"Instructor {user.instructor} is not the creator of forum {forum}")
+                    raise PermissionDenied("You don't have permission to post in this forum")
+            elif hasattr(user, 'student'):
+                # Students can post if they are active members
+                if not ForumMembership.objects.filter(forum=forum, student=user.student, is_active=True).exists():
+                    print(f"Student {user.student} is not an active member of forum {forum}")
+                    raise PermissionDenied("You must be an active member to post in this forum")
+            else:
+                print(f"User {user.email} has no instructor or student profile")
+                raise PermissionDenied("Invalid user type")
+            
+            # Set sender type and ID based on user type
+            if hasattr(user, 'instructor'):
+                sender_type = 'instructor'
+                sender_id = user.instructor.id
+            elif hasattr(user, 'student'):
+                sender_type = 'student'
+                sender_id = user.student.id
+            
+            print(f"Setting sender_type={sender_type}, sender_id={sender_id}")
+            
+            # Save the message with the forum and sender information
+            serializer.save(
+                forum=forum,
+                sender_type=sender_type,
+                sender_id=sender_id
+            )
+        except Forum.DoesNotExist:
+            print(f"Forum with ID {forum_id} not found")
+            raise PermissionDenied("Forum not found")
 
 class ForumAttachmentViewSet(viewsets.ModelViewSet):
     serializer_class = ForumAttachmentSerializer
-    permission_classes = [permissions.IsAuthenticated()]
+    # Fixed: Removed parentheses from IsAuthenticated
+    permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
         user = self.request.user
@@ -129,28 +284,114 @@ class ForumAttachmentViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         user = self.request.user
-        message = ForumMessage.objects.get(id=self.request.data.get('message'))
         
-        if hasattr(user, 'instructor'):
-            sender_type = 'instructor'
-            sender_id = user.instructor.id
-        elif hasattr(user, 'student'):
-            sender_type = 'student'
-            sender_id = user.student.id
-        else:
-            raise permissions.PermissionDenied("Invalid user type")
+        # Get the message ID from the request data
+        message_id = self.request.data.get('message')
+        print(f"Request data for attachment: {self.request.data}")
+        print(f"Looking for message with ID: {message_id}")
+        print(f"User email: {user.email}")
+        print(f"User ID: {user.id}")
+        # Only print username if it exists
+        if hasattr(user, 'username'):
+            print(f"User username: {user.username}")
         
-        # Validate file type (PDF or image)
-        file = self.request.FILES.get('file')
-        file_type = file.content_type
+        # Override user profile based on token data if available
+        sender_type = self.request.data.get('sender_type')
+        sender_id = self.request.data.get('sender_id')
         
-        if not (file_type.startswith('image/') or file_type == 'application/pdf'):
-            raise serializers.ValidationError("Only images and PDF files are allowed")
+        print(f"Token sender_type: {sender_type}, sender_id: {sender_id}")
         
-        serializer.save(
-            forum=message.forum,
-            sender_type=sender_type,
-            sender_id=sender_id,
-            file_type=file_type,
-            file_name=file.name
-        )
+        if sender_type == 'instructor':
+            # Force use the instructor profile from the token
+            from instructors.models import Instructor
+            try:
+                instructor = Instructor.objects.get(id=sender_id)
+                print(f"Found instructor by ID from token: {instructor}")
+                # Link the instructor to the user for this request
+                setattr(user, 'instructor', instructor)
+                # Remove any student attribute if it exists
+                if hasattr(user, 'student'):
+                    delattr(user, 'student')
+            except Instructor.DoesNotExist:
+                print(f"No instructor found with ID: {sender_id}")
+        
+        try:
+            # Try to get the message
+            message = ForumMessage.objects.get(id=message_id)
+            forum = message.forum
+            print(f"Found message: {message}, in forum: {forum}")
+            
+            # Check if the user is a student or instructor
+            if not hasattr(user, 'student') and not hasattr(user, 'instructor'):
+                # First try to find if this user has an instructor profile by email
+                from instructors.models import Instructor
+                try:
+                    instructor = Instructor.objects.get(email=user.email)
+                    print(f"Found instructor by email: {instructor}")
+                    # Link the instructor to the user for this request
+                    setattr(user, 'instructor', instructor)
+                except Instructor.DoesNotExist:
+                    # If not an instructor, try to find if this user has a student profile
+                    from students.models import Student
+                    try:
+                        student = Student.objects.get(email=user.email)
+                        print(f"Found student by email: {student}")
+                        # Link the student to the user for this request
+                        setattr(user, 'student', student)
+                    except Student.DoesNotExist:
+                        print(f"User {user.email} has no instructor or student profile")
+                        raise PermissionDenied("Invalid user type")
+            
+            # Check if user has permission to add attachment to this message
+            if hasattr(user, 'instructor'):
+                print(f"User is instructor: {user.instructor}")
+                # Instructors can add attachments if they created the forum
+                if forum.created_by != user.instructor:
+                    print(f"Instructor {user.instructor} is not the creator of forum {forum}")
+                    raise PermissionDenied("You don't have permission to add attachments to this forum")
+            elif hasattr(user, 'student'):
+                print(f"User is student: {user.student}")
+                # Students can add attachments if they are active members
+                if not ForumMembership.objects.filter(forum=forum, student=user.student, is_active=True).exists():
+                    print(f"Student {user.student} is not an active member of forum {forum}")
+                    raise PermissionDenied("You must be an active member to add attachments to this forum")
+            else:
+                print(f"User {user.email} has no instructor or student profile")
+                raise PermissionDenied("Invalid user type")
+            
+            # Set sender type and ID based on user type
+            if hasattr(user, 'instructor'):
+                sender_type = 'instructor'
+                sender_id = user.instructor.id
+            elif hasattr(user, 'student'):
+                sender_type = 'student'
+                sender_id = user.student.id
+            
+            print(f"Setting sender_type={sender_type}, sender_id={sender_id}")
+            
+            # Validate file type (PDF or image)
+            file = self.request.FILES.get('file')
+            if not file:
+                raise serializers.ValidationError("No file provided")
+                
+            file_type = file.content_type
+            print(f"File type: {file_type}")
+            
+            if not (file_type.startswith('image/') or file_type == 'application/pdf'):
+                raise serializers.ValidationError("Only images and PDF files are allowed")
+            
+            # Save the attachment
+            serializer.save(
+                message=message,
+                forum=forum,
+                sender_type=sender_type,
+                sender_id=sender_id,
+                file_type=file_type,
+                file_name=file.name
+            )
+        except ForumMessage.DoesNotExist:
+            print(f"Message with ID {message_id} not found")
+            raise PermissionDenied("Message not found")
+        except Exception as e:
+            print(f"Error creating attachment: {str(e)}")
+            raise PermissionDenied(f"Error creating attachment: {str(e)}")

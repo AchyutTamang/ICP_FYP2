@@ -9,4 +9,6 @@ router.register(r'attachments', ForumAttachmentViewSet, basename='forum-attachme
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('forums/<int:pk>/join/', ForumViewSet.as_view({'post': 'join'}), name='forum-join'),
+    path('forums/<int:pk>/leave/', ForumViewSet.as_view({'post': 'leave'}), name='forum-leave'),
 ]
