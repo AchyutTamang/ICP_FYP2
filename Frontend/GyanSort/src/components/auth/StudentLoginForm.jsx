@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { loginStudent } from "../../services/authService";
 import { toast } from "react-toastify";
+import { useAuth } from "../../context/AuthContext";
 
 const StudentLoginForm = ({ onClose }) => {
   const [formData, setFormData] = useState({
@@ -11,12 +12,14 @@ const StudentLoginForm = ({ onClose }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const { refreshAuthState } = useAuth(); // Add this line to get refreshAuthState
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
   };
 
+  // In your handleSubmit function, make sure you're calling refreshAuthState
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -26,9 +29,24 @@ const StudentLoginForm = ({ onClose }) => {
       console.log("Attempting student login with:", formData.email);
       const response = await loginStudent(formData.email, formData.password);
       console.log("Login response:", response);
+
+      // Make sure you're calling refreshAuthState here
+      refreshAuthState();
+
       toast.success("Login successful!");
       onClose();
-      navigate("/studenthome");
+
+      // Replace the simple navigation with setTimeout to ensure state updates
+      setTimeout(() => {
+        console.log("About to navigate to /student");
+        console.log("Final localStorage check:", {
+          access_token: !!localStorage.getItem("access_token"),
+          refresh_token: !!localStorage.getItem("refresh_token"),
+          user_role: localStorage.getItem("user_role"),
+          user_info: !!localStorage.getItem("user_info"),
+        });
+        navigate("/student", { replace: true });
+      }, 500);
     } catch (err) {
       console.error("Login error:", err);
       setError(
