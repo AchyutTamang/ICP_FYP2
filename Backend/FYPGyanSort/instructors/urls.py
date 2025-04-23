@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import RegisterView, VerifyEmail, LoginView, ProfileView
+from .views import RegisterView, VerifyEmail, LoginView, ProfileView, LogoutView
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -9,6 +9,7 @@ urlpatterns = [
     path('verify-email/<str:token>/', VerifyEmail.as_view(), name='verify-email'),
     path('login/', LoginView.as_view(), name='instructor-login'),
     path('profile/', ProfileView.as_view(), name='instructor-profile'),
+    path('logout/', LogoutView.as_view(), name='instructor-logout'),
 ]
 
 # Add this if you want to serve media files during development

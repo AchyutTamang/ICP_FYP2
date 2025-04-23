@@ -53,3 +53,6 @@ class InstructorProfileSerializer(serializers.ModelSerializer):
         model = Instructor
         fields = ('id', 'email', 'fullname', 'bio', 'verification_status', 'email_verified', 'profile_picture')
         read_only_fields = ('email', 'verification_status', 'email_verified')
+
+class LogoutSerializer(serializers.Serializer):
+    refresh = serializers.CharField()
