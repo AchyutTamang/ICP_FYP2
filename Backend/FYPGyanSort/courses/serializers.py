@@ -57,13 +57,27 @@ class CourseDetailSerializer(serializers.ModelSerializer):
                  'demo_video', 'reviews', 'modules', 'is_active', 'created_at', 'updated_at']
 
 
-# ... existing code ...
-
-class ContentSerializer(serializers.ModelSerializer):
+class CourseSerializer(serializers.ModelSerializer):
+    category_name = serializers.SerializerMethodField()
+    instructor_name = serializers.SerializerMethodField()
+    display_price = serializers.SerializerMethodField()
+    
     class Meta:
-        model = Content
-        fields = ['id', 'lesson', 'title', 'content_type', 'file', 'cloudfront_url', 
-                 'text_content', 'order', 'created_at', 'updated_at']
+        model = Course
+        fields = ['id', 'title', 'description', 'course_price', 'display_price', 'course_thumbnail', 
+                 'demo_video', 'category', 'category_name', 'instructor', 'instructor_name', 
+                 'created_at', 'updated_at', 'is_active', 'is_free']
+    
+    def get_category_name(self, obj):
+        return obj.category.name if obj.category else None
+    
+    def get_instructor_name(self, obj):
+        return obj.instructor.user.get_full_name() if obj.instructor and hasattr(obj.instructor, 'user') else None
+    
+    def get_display_price(self, obj):
+        if obj.is_free or obj.course_price == 0:
+            return "Free"
+        return f"Rs{obj.course_price:.2f}"
 
 class LessonSerializer(serializers.ModelSerializer):
     contents = ContentSerializer(many=True, read_only=True)

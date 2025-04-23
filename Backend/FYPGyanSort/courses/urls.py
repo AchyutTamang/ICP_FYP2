@@ -33,4 +33,5 @@ router.register(r'contents', views.ContentViewSet, basename='content')
 urlpatterns = [
     path('', api_root, name='api-root'),
     path('', include(router.urls)),
+   
 ]

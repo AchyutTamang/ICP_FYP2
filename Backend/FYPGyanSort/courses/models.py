@@ -12,6 +12,7 @@ def validate_file_size(value):
         if value.size > 300 * 1024 * 1024:  # 300MB in bytes
             raise ValidationError('Video size cannot exceed 300MB')
 
+# Category
 class Category(models.Model):
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
@@ -23,6 +24,7 @@ class Category(models.Model):
     def __str__(self):
         return self.name
 
+# Review
 class Review(models.Model):
     rating = models.IntegerField(
         choices=[(i, str(i)) for i in range(1, 6)],
@@ -35,6 +37,8 @@ class Review(models.Model):
     def __str__(self):
         return f"Rating: {self.rating}"
 
+# Course
+# Course
 class Course(models.Model):
     instructor = models.ForeignKey(
         Instructor, 
@@ -48,6 +52,7 @@ class Course(models.Model):
         decimal_places=2,
         validators=[MinValueValidator(Decimal('0.00'))]
     )
+    is_free = models.BooleanField(default=False)
     description = models.TextField()
     course_thumbnail = models.ImageField(
         upload_to='course_thumbnails/',
@@ -72,12 +77,17 @@ class Course(models.Model):
 
     def __str__(self):
         return self.title
+        
+    def save(self, *args, **kwargs):
+        # If price is 0, automatically mark as free
+        if self.course_price == Decimal('0.00'):
+            self.is_free = True
+        super().save(*args, **kwargs)
 
     class Meta:
         ordering = ['-created_at']
-
-# ... existing code ...
-
+        
+#module
 class Module(models.Model):
     course = models.ForeignKey(Course, related_name='modules', on_delete=models.CASCADE)
     title = models.CharField(max_length=200)
