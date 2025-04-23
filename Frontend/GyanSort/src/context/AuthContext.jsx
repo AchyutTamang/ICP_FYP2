@@ -1,69 +1,8 @@
-// import React, { createContext, useContext, useState, useEffect } from "react";
-
-// const AuthContext = createContext();
-
-// export const useAuth = () => useContext(AuthContext);
-
-// export const AuthProvider = ({ children }) => {
-//   const [isAuthenticated, setIsAuthenticated] = useState(false);
-//   const [userRole, setUserRole] = useState(null);
-//   const [user, setUser] = useState(null);
-//   const [loading, setLoading] = useState(true);
-
-//   useEffect(() => {
-//     // Check if user is logged in (e.g., by checking localStorage or a token)
-//     const token = localStorage.getItem("token");
-//     const savedUserRole = localStorage.getItem("userRole");
-
-//     if (token) {
-//       setIsAuthenticated(true);
-//       setUserRole(savedUserRole || "student"); // Default to student if role not found
-
-//       // You would typically fetch user data from your API here
-//       setUser({
-//         name: "User",
-//         email: "user@example.com",
-//         role: savedUserRole || "student",
-//       });
-//     }
-
-//     setLoading(false);
-//   }, []);
-
-//   const login = (userData, role, token) => {
-//     localStorage.setItem("token", token);
-//     localStorage.setItem("userRole", role);
-
-//     setIsAuthenticated(true);
-//     setUserRole(role);
-//     setUser(userData);
-//   };
-
-//   const logout = () => {
-//     localStorage.removeItem("token");
-//     localStorage.removeItem("userRole");
-
-//     setIsAuthenticated(false);
-//     setUserRole(null);
-//     setUser(null);
-//   };
-
-//   const value = {
-//     isAuthenticated,
-//     userRole,
-//     user,
-//     loading,
-//     login,
-//     logout,
-//   };
-
-//   return (
-//     <AuthContext.Provider value={value}>
-//       {!loading && children}
-//     </AuthContext.Provider>
-//   );
-// };
 import React, { createContext, useState, useContext, useEffect } from "react";
+import axios from "axios";
+
+// Define API URL
+const API_URL = "http://localhost:8000/api"; // Adjust this to match your backend URL
 
 // Create the context outside of any component
 const AuthContext = createContext();
@@ -74,11 +13,11 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState(null);
-  const [userInfo, setUserInfo] = useState(null);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkAuth = () => {
+    const checkAuth = async () => {
       try {
         const token = localStorage.getItem("access_token");
         const role = localStorage.getItem("user_role");
@@ -92,24 +31,117 @@ export const AuthProvider = ({ children }) => {
           setIsAuthenticated(true);
           setUserRole(role);
 
+          // Get user info from localStorage first
           const userInfoStr = localStorage.getItem("user_info");
+          let userInfo = null;
+
           if (userInfoStr) {
             try {
-              setUserInfo(JSON.parse(userInfoStr));
+              userInfo = JSON.parse(userInfoStr);
+              console.log("User info from localStorage:", userInfo);
+
+              // Ensure we have the correct properties set
+              if (role === "instructor") {
+                userInfo.fullname =
+                  userInfo.fullname || userInfo.name || "Instructor";
+                userInfo.profilePicture =
+                  userInfo.profile_picture || userInfo.profilePicture || null;
+              } else {
+                userInfo.fullname =
+                  userInfo.fullname ||
+                  (userInfo.first_name && userInfo.last_name
+                    ? `${userInfo.first_name} ${userInfo.last_name}`
+                    : "Student");
+                userInfo.profilePicture =
+                  userInfo.profile_pic || userInfo.profilePicture || null;
+              }
+
+              setUser(userInfo);
             } catch (e) {
               console.error("Error parsing user info:", e);
+            }
+          }
+
+          // Fetch fresh user data to ensure we have the latest info
+          try {
+            let endpoint = "";
+            if (role === "student") {
+              endpoint = `${API_URL}/students/profile/`;
+            } else if (role === "instructor") {
+              endpoint = `${API_URL}/instructors/profile/`;
+            }
+
+            if (endpoint) {
+              console.log("Fetching profile from:", endpoint);
+              const response = await axios.get(endpoint, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+
+              console.log("API Response:", response.data);
+
+              // Log all fields in the response for debugging
+              console.log("All fields in response:");
+              Object.keys(response.data).forEach((key) => {
+                console.log(`${key}:`, response.data[key]);
+              });
+
+              // Create a user object with appropriate data based on role
+              let userData = {
+                ...response.data,
+              };
+
+              // Handle different data structures for student vs instructor
+              if (role === "instructor") {
+                // Try all possible field names for instructor name
+                userData.fullname =
+                  response.data.fullname ||
+                  response.data.full_name ||
+                  response.data.name ||
+                  "Instructor";
+
+                // Try all possible field names for profile picture
+                userData.profilePicture =
+                  response.data.profile_picture ||
+                  response.data.profilePicture ||
+                  response.data.profile_pic ||
+                  null;
+
+                console.log("Final instructor data:", {
+                  fullname: userData.fullname,
+                  profilePicture: userData.profilePicture,
+                });
+              } else {
+                // For students
+                userData.fullname =
+                  response.data.first_name && response.data.last_name
+                    ? `${response.data.first_name} ${response.data.last_name}`
+                    : response.data.fullname || response.data.name || "Student";
+                userData.profilePicture = response.data.profile_pic || null;
+              }
+
+              console.log("Processed user data:", userData);
+
+              // Update localStorage with fresh data
+              localStorage.setItem("user_info", JSON.stringify(userData));
+              setUser(userData);
+            }
+          } catch (error) {
+            console.error("Error fetching user profile:", error);
+            // If we can't fetch fresh data, use what we have from localStorage
+            if (userInfo) {
+              setUser(userInfo);
             }
           }
         } else {
           setIsAuthenticated(false);
           setUserRole(null);
-          setUserInfo(null);
+          setUser(null);
         }
       } catch (error) {
         console.error("Error in auth check:", error);
         setIsAuthenticated(false);
         setUserRole(null);
-        setUserInfo(null);
+        setUser(null);
       } finally {
         setLoading(false);
       }
@@ -124,20 +156,69 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
+  const login = (userData, role, token, refreshToken) => {
+    console.log("Login data:", userData, role);
+
+    // Create user object with appropriate data based on role
+    let userWithFullName = {
+      ...userData,
+    };
+
+    // Handle different data structures for student vs instructor
+    if (role === "instructor") {
+      // For instructors, check if we have a name field directly
+      userWithFullName.fullname =
+        userData.fullname ||
+        userData.full_name ||
+        userData.name ||
+        "Instructor";
+      userWithFullName.profilePicture =
+        userData.profile_picture ||
+        userData.profilePicture ||
+        userData.profile_pic ||
+        null;
+
+      console.log("Processed instructor data:", userWithFullName);
+    } else {
+      // For students
+      userWithFullName.fullname =
+        userData.fullname ||
+        (userData.first_name && userData.last_name
+          ? `${userData.first_name} ${userData.last_name}`
+          : "Student");
+      userWithFullName.profilePicture =
+        userData.profile_pic || userData.profilePicture || null;
+    }
+    console.log("Processed login data:", userWithFullName);
+
+    localStorage.setItem("access_token", token);
+    if (refreshToken) {
+      localStorage.setItem("refresh_token", refreshToken);
+    }
+    localStorage.setItem("user_role", role);
+    localStorage.setItem("user_info", JSON.stringify(userWithFullName));
+
+    setIsAuthenticated(true);
+    setUserRole(role);
+    setUser(userWithFullName);
+  };
+
   const logout = () => {
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
     localStorage.removeItem("user_role");
     localStorage.removeItem("user_info");
+
     setIsAuthenticated(false);
     setUserRole(null);
-    setUserInfo(null);
+    setUser(null);
   };
 
-  const refreshAuthState = () => {
+  
+
+  const refreshAuthState = async () => {
     const token = localStorage.getItem("access_token");
     const role = localStorage.getItem("user_role");
-    const userInfoStr = localStorage.getItem("user_info");
 
     console.log(
       "Refreshing auth state - Token exists:",
@@ -150,28 +231,88 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true);
       setUserRole(role);
 
-      if (userInfoStr) {
-        try {
-          setUserInfo(JSON.parse(userInfoStr));
-        } catch (e) {
-          console.error("Error parsing user info:", e);
-          setUserInfo(null);
+      // Try to get fresh user data
+      try {
+        let endpoint = "";
+        if (role === "student") {
+          endpoint = `${API_URL}/students/profile/`;
+        } else if (role === "instructor") {
+          endpoint = `${API_URL}/instructors/profile/`;
+        }
+
+        if (endpoint) {
+          const response = await axios.get(endpoint, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          console.log(`${role} profile data received:`, response.data);
+
+          // Create a user object with appropriate data based on role
+          let userData = {
+            ...response.data,
+          };
+
+          // For instructors, ensure we're using the correct name field
+          if (role === "instructor") {
+            // Log all fields to see what's available
+            console.log(
+              "Instructor profile fields:",
+              Object.keys(response.data)
+            );
+
+            // Use the fullname field directly from the response
+            userData.fullname =
+              response.data.fullname ||
+              (response.data.email
+                ? response.data.email.split("@")[0]
+                : "Instructor");
+
+            userData.profilePicture = response.data.profile_picture || null;
+
+            console.log("Final instructor user data:", userData);
+          } else {
+            // For students
+            userData.fullname =
+              response.data.first_name && response.data.last_name
+                ? `${response.data.first_name} ${response.data.last_name}`
+                : response.data.fullname || response.data.name || "Student";
+            userData.profilePicture = response.data.profile_pic || null;
+          }
+
+          localStorage.setItem("user_info", JSON.stringify(userData));
+          setUser(userData);
+        }
+      } catch (error) {
+        console.error("Error refreshing user data:", error);
+
+        // Fall back to stored user info
+        const userInfoStr = localStorage.getItem("user_info");
+        if (userInfoStr) {
+          try {
+            setUser(JSON.parse(userInfoStr));
+          } catch (e) {
+            console.error("Error parsing user info:", e);
+            setUser(null);
+          }
         }
       }
     } else {
       setIsAuthenticated(false);
       setUserRole(null);
-      setUserInfo(null);
+      setUser(null);
     }
   };
+
+ 
 
   return (
     <AuthContext.Provider
       value={{
         isAuthenticated,
         userRole,
-        userInfo,
+        user,
         loading,
+        login,
         logout,
         refreshAuthState,
       }}
@@ -180,3 +321,5 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
+
+export default AuthProvider;

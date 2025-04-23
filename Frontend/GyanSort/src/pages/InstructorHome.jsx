@@ -56,6 +56,13 @@ function InstructorHome() {
         </div>
       </div>
 
+      <button
+        onClick={() => navigate("/instructor/courses")}
+        className="bg-[#00FF40] hover:bg-[#00DD30] text-black font-bold py-2 px-4 rounded-md"
+      >
+        Manage My Courses
+      </button>
+      
       {/* Your Courses Section */}
       <div className="container mx-auto px-4 py-16 relative z-10">
         <h2 className="text-3xl font-bold mb-8">Your Courses</h2>

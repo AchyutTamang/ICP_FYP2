@@ -156,7 +156,7 @@ export const registerStudent = async (fullname, email, password) => {
     console.log("Sending registration request to:", `${API_URL}register/`);
     console.log("Request data:", { fullname, email, password: "***" });
 
-    const response = await axios.post(`${API_URL}register/`, {
+    const response = await axios.post(`${API_URL}students/register/`, {
       fullname,
       email,
       password,
@@ -293,6 +293,7 @@ export const resetPassword = async (token, password) => {
   }
 };
 
+
 // Login instructor
 export const loginInstructor = async (email, password) => {
   try {
@@ -304,31 +305,88 @@ export const loginInstructor = async (email, password) => {
       email,
       password,
     });
-    console.log("Instructor login successful:", response.data);
+    console.log("Instructor login response:", response.data);
+    
+    // Log all fields in the response for debugging
+    console.log("All instructor login response fields:");
+    Object.keys(response.data).forEach(key => {
+      console.log(`${key}:`, response.data[key]);
+    });
+    
+    if (response.data.user) {
+      console.log("User object fields:");
+      Object.keys(response.data.user).forEach(key => {
+        console.log(`user.${key}:`, response.data.user[key]);
+      });
+    }
 
-    // Explicitly check and store each item
+    // Store tokens
     if (response.data.access) {
       localStorage.setItem("access_token", response.data.access);
     }
-
     if (response.data.refresh) {
       localStorage.setItem("refresh_token", response.data.refresh);
     }
-
-    // Always set the user role
+    
+    // Set user role
     localStorage.setItem("user_role", "instructor");
 
+    // Store initial user data with email as fallback for name
+    const userEmail = email || response.data.user?.email;
+    const displayName = userEmail.split('@')[0]; // Use part before @ as display name
+    
     if (response.data.user) {
-      localStorage.setItem("user_info", JSON.stringify(response.data.user));
+      const initialUserData = {
+        ...response.data.user,
+        email: userEmail,
+        fullname: response.data.user.fullname || displayName,
+        profilePicture: response.data.user.profile_picture || null
+      };
+      
+      console.log("Initial instructor data to store:", initialUserData);
+      localStorage.setItem("user_info", JSON.stringify(initialUserData));
     }
 
-    // Verify storage was successful
-    console.log("Storage verification:", {
-      access_token: localStorage.getItem("access_token"),
-      refresh_token: localStorage.getItem("refresh_token"),
-      user_role: localStorage.getItem("user_role"),
-      user_info: localStorage.getItem("user_info"),
-    });
+    // Now fetch the complete profile data
+    try {
+      console.log("Fetching instructor profile data...");
+      const token = response.data.access;
+      const profileResponse = await axios.get(`${API_URL}instructors/profile/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      console.log("Instructor profile data received:", profileResponse.data);
+      console.log("Profile data fields:", Object.keys(profileResponse.data));
+      
+      // Log each field in the profile response
+      Object.keys(profileResponse.data).forEach(key => {
+        console.log(`Profile ${key}:`, profileResponse.data[key]);
+      });
+      
+      // Create a complete user object with the profile data
+      const profileData = profileResponse.data;
+      
+      // Explicitly set each field we need
+      const completeUserData = {
+        id: profileData.id || response.data.user?.id,
+        email: userEmail,
+        fullname: profileData.fullname || response.data.user?.fullname || displayName,
+        profilePicture: profileData.profile_picture || response.data.user?.profile_picture || null,
+        bio: profileData.bio || response.data.user?.bio || "",
+        // Add any other fields you need
+      };
+      
+      console.log("Final instructor data to store:", completeUserData);
+      
+      // Update localStorage with the complete profile data
+      localStorage.setItem("user_info", JSON.stringify(completeUserData));
+      
+      // Force a page refresh to ensure the UI updates with the new data
+      window.location.reload();
+    } catch (profileError) {
+      console.error("Error fetching instructor profile:", profileError);
+      // Continue with login process even if profile fetch fails
+    }
 
     return response.data;
   } catch (error) {
@@ -342,7 +400,7 @@ export const registerInstructor = async (instructorData) => {
   try {
     console.log("Registering instructor:", instructorData);
     const response = await axios.post(
-      `${API_URL}instructors/register/`,
+      `http://127.0.0.1:8000/api/instructors/register/`,
       instructorData
     );
     console.log("Registration response:", response.data);

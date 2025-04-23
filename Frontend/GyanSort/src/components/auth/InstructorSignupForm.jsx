@@ -76,24 +76,48 @@ const InstructorSignupForm = ({ onClose }) => {
       submitData.append("profile_picture", files.profile_picture);
     }
 
+    //   try {
+    //     await registerInstructor(submitData);
+    //     toast.success(
+    //       "Registration successful! Please check your email to verify your account. Your instructor profile will be reviewed by an admin."
+    //     );
+    //     onClose();
+    //   } catch (err) {
+    //     console.error("Registration error:", err);
+    //     setError(
+    //       err.detail ||
+    //         (typeof err === "object" && Object.values(err).flat().join(", ")) ||
+    //         "Registration failed. Please try again."
+    //     );
+    //   } finally {
+    //     setLoading(false);
+    //   }
+    // };
     try {
-      await registerInstructor(submitData);
-      toast.success(
-        "Registration successful! Please check your email to verify your account. Your instructor profile will be reviewed by an admin."
+      // Use the correct endpoint for instructor registration
+      const response = await axios.post(
+        "http://localhost:8000/api/register/",
+        formData
       );
-      onClose();
-    } catch (err) {
-      console.error("Registration error:", err);
+
+      console.log("Registration successful:", response.data);
+
+      // Show success message or redirect
+      setSuccess(true);
+      // Optionally redirect to login
+      // navigate('/login');
+    } catch (error) {
+      console.error("Registration error:", error);
       setError(
-        err.detail ||
-          (typeof err === "object" && Object.values(err).flat().join(", ")) ||
+        error.response?.data?.detail ||
+          error.response?.data?.error ||
           "Registration failed. Please try again."
       );
     } finally {
       setLoading(false);
     }
   };
-
+  
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <div className="text-red-500 text-sm">{error}</div>}
