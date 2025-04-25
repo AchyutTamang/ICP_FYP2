@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
 import { toast } from "react-toastify";
-import { FaTrash } from "react-icons/fa";
+import { FaTrash, FaHeart } from "react-icons/fa";
 import Navbar from "../stick/Navbar";
 import { useAuth } from "../../context/AuthContext";
+import { useCart } from "../../context/CartContext";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 
+// Make sure the component name matches what you're exporting
 const CartPage = () => {
-  const [cartItems, setCartItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { cartItems, loading, removeFromCart, addToFavorites, fetchCartItems } =
+    useCart();
   const [error, setError] = useState(null);
+  const [totalPrice, setTotalPrice] = useState(0);
   const { isAuthenticated, userRole } = useAuth();
   const navigate = useNavigate();
 
@@ -23,59 +26,71 @@ const CartPage = () => {
 
     if (userRole !== "student") {
       navigate("/");
-      toast.error("Only students can access the cart");
+      toast.error("Only students can access cart");
       return;
     }
 
+    // Refresh cart items
     fetchCartItems();
-  }, [isAuthenticated, userRole, navigate]);
+  }, [isAuthenticated, userRole, navigate, fetchCartItems]);
 
-  const fetchCartItems = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get("http://localhost:8000/api/cart/cart/", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-        },
-      });
-
-      setCartItems(response.data);
-      setLoading(false);
-    } catch (err) {
-      console.error("Error fetching cart items:", err);
-      setError("Failed to load cart items. Please try again later.");
-      setLoading(false);
-    }
-  };
+  // Calculate total price whenever cart items change
+  useEffect(() => {
+    const total = cartItems.reduce((sum, item) => {
+      const priceString = item.course_details?.course_price || "0";
+      const numericPrice = parseFloat(priceString.replace(/[^\d.]/g, "")) || 0;
+      return sum + numericPrice;
+    }, 0);
+    setTotalPrice(total.toFixed(2)); 
+  }, [cartItems]);
 
   const handleRemoveFromCart = async (cartItemId) => {
-    try {
-      await axios.delete(`http://localhost:8000/api/cart/cart/${cartItemId}/`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-        },
-      });
-
-      // Update cart items after successful removal
-      setCartItems(cartItems.filter((item) => item.id !== cartItemId));
+    const result = await removeFromCart(cartItemId);
+    if (result.success) {
       toast.success("Item removed from cart");
-    } catch (err) {
-      console.error("Error removing item from cart:", err);
-      toast.error("Failed to remove item from cart");
+    } else {
+      toast.error(result.error || "Failed to remove item from cart");
     }
   };
 
-  const calculateTotal = () => {
-    return cartItems.reduce(
-      (total, item) => total + (item.course.price || 0),
-      0
-    );
+  const handleAddToFavorites = async (courseId) => {
+    const result = await addToFavorites(courseId);
+    if (result.success) {
+      toast.success("Course added to favorites successfully!");
+    } else {
+      if (result.error === "Course already in favorites") {
+        toast.info("This course is already in your favorites");
+      } else {
+        toast.error(result.error || "Failed to add course to favorites");
+      }
+    }
   };
 
-  const handleCheckout = () => {
-    // Implement checkout functionality
-    toast.info("Checkout functionality will be implemented soon!");
+  const handleCheckout = async () => {
+    try {
+      // Create an order from cart items
+      const response = await axios.post(
+        "http://localhost:8000/api/orders/create/",
+        { cart_items: cartItems.map((item) => item.id) },
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+          },
+        }
+      );
+
+      if (response.status === 201) {
+        // Redirect to payment page with order ID
+        navigate(`/payment/${response.data.order_id}`);
+        toast.success("Order created successfully! Proceeding to payment.");
+      }
+    } catch (err) {
+      console.error("Error during checkout:", err);
+      toast.error(err.response?.data?.detail || "Failed to process checkout");
+    }
   };
+
+  console.log("cartItems:", cartItems);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800">
@@ -104,82 +119,76 @@ const CartPage = () => {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2">
-              <div className="bg-gray-800 rounded-lg overflow-hidden">
-                <div className="p-6">
-                  {cartItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-gray-700 py-4 last:border-b-0"
-                    >
-                      <div className="flex items-center mb-4 md:mb-0">
-                        <img
-                          src={
-                            item.course.thumbnail ||
-                            "https://via.placeholder.com/80x80"
-                          }
-                          alt={item.course.title}
-                          className="w-20 h-20 object-cover rounded-md mr-4"
-                        />
-                        <div>
-                          <h3 className="text-white font-semibold">
-                            {item.course.title}
-                          </h3>
-                          <p className="text-gray-400 text-sm mt-1">
-                            {item.course.instructor_name || "Instructor"}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between w-full md:w-auto">
-                        <span className="text-[#00FF40] font-bold md:mr-8">
-                          RS {item.course.price || 0}
-                        </span>
-                        <button
-                          onClick={() => handleRemoveFromCart(item.id)}
-                          className="text-red-500 hover:text-red-400 transition-colors duration-300"
-                          title="Remove from cart"
-                        >
-                          <FaTrash />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="lg:col-span-1">
-              <div className="bg-gray-800 rounded-lg overflow-hidden sticky top-24">
-                <div className="p-6">
-                  <h2 className="text-xl font-bold text-white mb-6">
-                    Order Summary
-                  </h2>
-
-                  <div className="space-y-4 mb-6">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Subtotal</span>
-                      <span className="text-white">RS {calculateTotal()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Discount</span>
-                      <span className="text-white">RS 0</span>
-                    </div>
-                    <div className="border-t border-gray-700 pt-4 flex justify-between">
-                      <span className="text-white font-bold">Total</span>
-                      <span className="text-[#00FF40] font-bold">
-                        RS {calculateTotal()}
-                      </span>
+          <div className="grid grid-cols-1 gap-6">
+            <div className="bg-gray-800 rounded-lg p-6">
+              {cartItems.map((item) => (
+                <div
+                  key={item.course_details?.id}
+                  className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-700 py-4"
+                >
+                  <div className="flex items-center mb-4 md:mb-0">
+                    <img
+                      src={
+                        item.course_details?.course_thumbnail ||
+                        "https://via.placeholder.com/100x100"
+                      }
+                      alt={item.course_details?.title}
+                      className="w-20 h-20 object-cover rounded-md mr-4"
+                    />
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">
+                        {item.course_details?.title}
+                      </h3>
+                      <p className="text-gray-400 line-clamp-1">
+                        {item.course_details?.description}
+                      </p>
                     </div>
                   </div>
 
-                  <button
-                    onClick={handleCheckout}
-                    className="w-full bg-[#00FF40] hover:bg-[#00DD30] text-black font-bold py-3 px-4 rounded-md transition duration-300"
-                  >
-                    Proceed to Checkout
-                  </button>
+                  <div className="flex items-center space-x-4 w-full md:w-auto">
+                    <div className="text-[#00FF40] font-bold text-xl">
+                       {item.course_details?.display_price || 0}
+                    </div>
+                    <button
+                      onClick={() =>
+                        handleAddToFavorites(item.course_details?.id)
+                      }
+                      className="p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md transition-colors duration-300"
+                      title="Add to favorites"
+                    >
+                      <FaHeart />
+                    </button>
+                   
+                    <button
+                      onClick={() => handleRemoveFromCart(item.id)}  // Changed from course_details?.id to item.id
+                      className="p-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors duration-300"
+                      title="Remove from cart"
+                    >
+                      <FaTrash />
+                    </button>
+
+                 
+                    <div className="text-[#00FF40] font-bold text-xl">
+                      RS {item.course_details?.course_price || 0}  
+                    </div>
+                  </div>
                 </div>
+              ))}
+
+              <div className="mt-8 border-t border-gray-700 pt-6">
+                <div className="flex justify-between items-center mb-6">
+                  <span className="text-xl text-white">Total:</span>
+                  <span className="text-2xl font-bold text-[#00FF40]">
+                    RS {totalPrice}
+                  </span>
+                </div>
+
+                <button
+                  onClick={handleCheckout}
+                  className="w-full bg-[#00FF40] hover:bg-[#00DD30] text-black font-bold py-3 rounded-md transition duration-300"
+                >
+                  Proceed to Checkout
+                </button>
               </div>
             </div>
           </div>
@@ -196,4 +205,5 @@ const CartPage = () => {
   );
 };
 
+// This line is crucial - make sure it exists and the name matches
 export default CartPage;

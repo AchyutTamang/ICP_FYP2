@@ -218,11 +218,29 @@ export const loginStudent = async (email, password) => {
 };
 
 // Update logoutStudent to match the keys used in loginStudent
-export const logoutStudent = () => {
-  localStorage.removeItem("access_token");
-  localStorage.removeItem("refresh_token");
-  localStorage.removeItem("user_role");
-  localStorage.removeItem("user_info");
+export const logoutStudent = async () => {
+  try {
+    const refreshToken = localStorage.getItem("refresh_token");
+    const accessToken = localStorage.getItem("access_token");
+    
+    if (refreshToken && accessToken) {
+      // Call the backend logout endpoint
+      await axios.post(
+        `${API_URL}students/logout/`,
+        { refresh: refreshToken },
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+    }
+  } catch (error) {
+    console.error("Error during logout:", error);
+  } finally {
+    // Clear all auth data regardless of API call success
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    localStorage.removeItem("user_role");
+    localStorage.removeItem("user_info");
+    sessionStorage.clear();
+  }
 };
 
 // Update getCurrentStudent to match the keys used in loginStudent
@@ -293,10 +311,18 @@ export const resetPassword = async (token, password) => {
   }
 };
 
-
 // Login instructor
 export const loginInstructor = async (email, password) => {
   try {
+    // Clear any existing auth data before login
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    localStorage.removeItem("user_role");
+    localStorage.removeItem("user_info");
+    
+    // Force clear session storage too
+    sessionStorage.clear();
+
     console.log(
       "Sending instructor login request to:",
       `${API_URL}instructors/login/`
@@ -306,19 +332,12 @@ export const loginInstructor = async (email, password) => {
       password,
     });
     console.log("Instructor login response:", response.data);
-    
+
     // Log all fields in the response for debugging
     console.log("All instructor login response fields:");
-    Object.keys(response.data).forEach(key => {
+    Object.keys(response.data).forEach((key) => {
       console.log(`${key}:`, response.data[key]);
     });
-    
-    if (response.data.user) {
-      console.log("User object fields:");
-      Object.keys(response.data.user).forEach(key => {
-        console.log(`user.${key}:`, response.data.user[key]);
-      });
-    }
 
     // Store tokens
     if (response.data.access) {
@@ -327,62 +346,56 @@ export const loginInstructor = async (email, password) => {
     if (response.data.refresh) {
       localStorage.setItem("refresh_token", response.data.refresh);
     }
-    
+
     // Set user role
     localStorage.setItem("user_role", "instructor");
 
-    // Store initial user data with email as fallback for name
-    const userEmail = email || response.data.user?.email;
-    const displayName = userEmail.split('@')[0]; // Use part before @ as display name
-    
+    // IMPORTANT: Store the email used for login
+    const loginEmail = email;
+    console.log("Login email being stored:", loginEmail);
+
+    // Create initial user data with the login email
+    const initialUserData = {
+      email: loginEmail,
+      fullname: loginEmail.split("@")[0], // Use email username as initial display name
+    };
+
     if (response.data.user) {
-      const initialUserData = {
-        ...response.data.user,
-        email: userEmail,
-        fullname: response.data.user.fullname || displayName,
-        profilePicture: response.data.user.profile_picture || null
-      };
+      // Merge with any user data from response
+      Object.assign(initialUserData, response.data.user);
       
-      console.log("Initial instructor data to store:", initialUserData);
-      localStorage.setItem("user_info", JSON.stringify(initialUserData));
+      // Ensure email is still the login email
+      initialUserData.email = loginEmail;
     }
+
+    console.log("Initial instructor data to store:", initialUserData);
+    localStorage.setItem("user_info", JSON.stringify(initialUserData));
 
     // Now fetch the complete profile data
     try {
       console.log("Fetching instructor profile data...");
       const token = response.data.access;
-      const profileResponse = await axios.get(`${API_URL}instructors/profile/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
+      const profileResponse = await axios.get(
+        `${API_URL}instructors/profile/`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
       console.log("Instructor profile data received:", profileResponse.data);
-      console.log("Profile data fields:", Object.keys(profileResponse.data));
-      
-      // Log each field in the profile response
-      Object.keys(profileResponse.data).forEach(key => {
-        console.log(`Profile ${key}:`, profileResponse.data[key]);
-      });
-      
+
       // Create a complete user object with the profile data
       const profileData = profileResponse.data;
-      
-      // Explicitly set each field we need
+
+      // IMPORTANT: Always keep the login email
       const completeUserData = {
-        id: profileData.id || response.data.user?.id,
-        email: userEmail,
-        fullname: profileData.fullname || response.data.user?.fullname || displayName,
-        profilePicture: profileData.profile_picture || response.data.user?.profile_picture || null,
-        bio: profileData.bio || response.data.user?.bio || "",
-        // Add any other fields you need
+        ...profileData,
+        email: loginEmail, // Ensure we keep the login email
+        fullname: profileData.fullname || loginEmail.split("@")[0],
       };
-      
+
       console.log("Final instructor data to store:", completeUserData);
-      
-      // Update localStorage with the complete profile data
       localStorage.setItem("user_info", JSON.stringify(completeUserData));
-      
-      // Force a page refresh to ensure the UI updates with the new data
-      window.location.reload();
     } catch (profileError) {
       console.error("Error fetching instructor profile:", profileError);
       // Continue with login process even if profile fetch fails
@@ -421,10 +434,29 @@ export const getUserRole = () => {
   return localStorage.getItem("user_role");
 };
 
-// Logout user (general)
-export const logout = () => {
-  localStorage.removeItem("access_token");
-  localStorage.removeItem("refresh_token");
-  localStorage.removeItem("user_role");
-  localStorage.removeItem("user_info");
+// Add a proper logout function for instructors
+export const logoutInstructor = async () => {
+  try {
+    const refreshToken = localStorage.getItem("refresh_token");
+    const accessToken = localStorage.getItem("access_token");
+    
+    if (refreshToken && accessToken) {
+      // Call the backend logout endpoint
+      await axios.post(
+        `${API_URL}instructors/logout/`,
+        { refresh: refreshToken },
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+    }
+  } catch (error) {
+    console.error("Error during logout:", error);
+  } finally {
+    // Clear all auth data regardless of API call success
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    localStorage.removeItem("user_role");
+    localStorage.removeItem("user_info");
+    sessionStorage.clear();
+  }
 };
+

@@ -1,4 +1,4 @@
- import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
  import axios from "axios";
  import { toast } from "react-toastify";
  import { useNavigate } from "react-router-dom";
@@ -6,6 +6,7 @@
  import CourseCarousel from "./CourseCarousel";
  import CourseCard from "./CourseCard";
  import { useAuth } from "../../context/AuthContext";
+ import { useCart } from "../../context/CartContext";
  import { FaArrowLeft, FaArrowRight } from "react-icons/fa";
 
  const CoursesPage = () => {
@@ -17,6 +18,8 @@
    const coursesPerPage = 3;
    const { isAuthenticated, userRole } = useAuth();
    const navigate = useNavigate();
+   const { addToCart, addToFavorites } = useCart();
+   const [processingCourseId, setProcessingCourseId] = useState(null);
    
 
      useEffect(() => {
@@ -86,7 +89,7 @@
      
    const handleAddToCart = async (courseId) => {
      if (!isAuthenticated) {
-       toast.error("Please login as a student to add courses to cart");
+       toast.error("Please login to add courses to cart");
        return;
      }
 
@@ -96,24 +99,22 @@
      }
 
      try {
-       const response = await axios.post(
-         "http://localhost:8000/api/cart/cart/",
-         { course_id: courseId },
-         {
-           headers: {
-             Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-           },
-         }
-       );
-
-       if (response.status === 201) {
+       setProcessingCourseId(courseId);
+       const result = await addToCart(courseId);
+       if (result.success) {
          toast.success("Course added to cart successfully!");
+       } else {
+         if (result.error === "Course already in cart") {
+           toast.info("This course is already in your cart");
+         } else {
+           toast.error(result.error || "Failed to add course to cart");
+         }
        }
-     } catch (err) {
-       console.error("Error adding to cart:", err);
-       toast.error(
-         err.response?.data?.detail || "Failed to add course to cart"
-       );
+     } catch (error) {
+       toast.error("An error occurred while adding to cart");
+       console.error(error);
+     } finally {
+       setProcessingCourseId(null);
      }
    };
 
@@ -164,7 +165,7 @@
        setCurrentPage(pageNumber);
      }
    };
-
+   
    return (
      <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800">
        <Navbar />
@@ -194,7 +195,7 @@
        {/* All Courses Section - Update the error display here too */}
        <section className="py-12 bg-gray-900 bg-opacity-50">
          <div className="container mx-auto px-4">
-           <h2 className="text-3xl font-bold text-white mb-8">
+           <h2 className="text-3xl font-bold text-white mb-8 text-center">
              Available Courses
            </h2>
 
