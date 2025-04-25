@@ -28,16 +28,19 @@ class CartViewSet(viewsets.ModelViewSet):
         return CartItem.objects.filter(student=self.request.user)
 
     def create(self, request, *args, **kwargs):
-        course_id = request.data.get('course')
+        # Change 'course' to 'course_id' to match frontend request
+        course_id = request.data.get('course_id')
+        
+        print("course_id: ", course_id)
         
         try:
             course = Course.objects.get(id=course_id)
         except Course.DoesNotExist:
-            return Response({"error": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
         
         # Check if already in cart
         if CartItem.objects.filter(student=request.user, course=course).exists():
-            return Response({"error": "Course already in cart"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Course already in cart"}, status=status.HTTP_400_BAD_REQUEST)
         
         cart_item = CartItem(student=request.user, course=course)
         cart_item.save()
@@ -76,16 +79,17 @@ class FavoriteViewSet(viewsets.ModelViewSet):
         return Favorite.objects.filter(student=self.request.user)
 
     def create(self, request, *args, **kwargs):
-        course_id = request.data.get('course')
+        # Change 'course' to 'course_id' to match frontend request
+        course_id = request.data.get('course_id')
         
         try:
             course = Course.objects.get(id=course_id)
         except Course.DoesNotExist:
-            return Response({"error": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
         
         # Check if already in favorites
         if Favorite.objects.filter(student=request.user, course=course).exists():
-            return Response({"error": "Course already in favorites"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Course already in favorites"}, status=status.HTTP_400_BAD_REQUEST)
         
         favorite = Favorite(student=request.user, course=course)
         favorite.save()
