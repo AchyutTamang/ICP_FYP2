@@ -550,6 +550,7 @@ import { useAuth } from "../../context/AuthContext";
 import { toast } from "react-toastify";
 import { useCart } from "../../context/CartContext";
 
+
 // Create context for opening auth modal
 export const AuthModalContext = createContext();
 
@@ -839,22 +840,28 @@ function Navbar() {
                 <>
                   {userRole === "student" && (
                     <>
-                      <Link to="/wishlist" className="text-gray-300 hover:text-white relative">
-                  <FaHeart className="text-xl" />
-                  {favoritesCount > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-[#00FF40] text-black text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-                      {favoritesCount}
-                    </span>
-                  )}
-                </Link>
-                <Link to="/cart" className="text-gray-300 hover:text-white relative">
-                  <FaShoppingCart className="text-xl" />
-                  {cartCount > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-[#00FF40] text-black text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-                      {cartCount}
-                    </span>
-                  )}
-                </Link>
+                      <Link
+                        to="/wishlist"
+                        className="text-gray-300 hover:text-white relative"
+                      >
+                        <FaHeart className="text-xl" />
+                        {favoritesCount > 0 && (
+                          <span className="absolute -top-2 -right-2 bg-[#00FF40] text-black text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                            {favoritesCount}
+                          </span>
+                        )}
+                      </Link>
+                      <Link
+                        to="/cart"
+                        className="text-gray-300 hover:text-white relative"
+                      >
+                        <FaShoppingCart className="text-xl" />
+                        {cartCount > 0 && (
+                          <span className="absolute -top-2 -right-2 bg-[#00FF40] text-black text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                            {cartCount}
+                          </span>
+                        )}
+                      </Link>
                     </>
                   )}
 
@@ -991,7 +998,7 @@ function Navbar() {
                         Dashboard
                       </Link>
                       <Link
-                        to={`/${userRole}-profile`}
+                        to="/profile"
                         className="block px-4 py-2 text-sm text-white hover:bg-gray-700"
                       >
                         Profile

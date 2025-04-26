@@ -12,28 +12,42 @@ const EmailVerification = () => {
   useEffect(() => {
     const verifyEmail = async () => {
       try {
+        // Call backend verification endpoint directly
         const response = await axios.get(
           `http://localhost:8000/api/students/verify-email/${token}/`
         );
-        setSuccess(true);
-        setMessage(response.data.message);
 
-        // Auto-redirect after 3 seconds
-        setTimeout(() => {
-          navigate("/login");
-        }, 3000);
+        if (response.data.success) {
+          setSuccess(true);
+          setMessage(response.data.message);
+          
+          // Auto-redirect after successful verification
+          setTimeout(() => {
+            navigate("/login");
+          }, 3000);
+        } else {
+          throw new Error(response.data.message);
+        }
       } catch (error) {
+        console.error("Verification error:", error);
         setSuccess(false);
         setMessage(
-          error.response?.data?.message ||
-            "Verification failed. Please try again."
+          error.response?.data?.message || 
+          "Verification failed. Please try again."
         );
+        
+        // If verification fails, redirect to signup after 3 seconds
+        setTimeout(() => {
+          navigate("/signup");
+        }, 3000);
       } finally {
         setLoading(false);
       }
     };
 
-    verifyEmail();
+    if (token) {
+      verifyEmail();
+    }
   }, [token, navigate]);
 
   return (

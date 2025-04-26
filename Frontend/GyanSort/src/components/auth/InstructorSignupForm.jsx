@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { registerInstructor } from "../../services/instructorAuth";
 import { toast } from "react-toastify";
+import axios from 'axios';  // Add this at the top with other imports
 
 const InstructorSignupForm = ({ onClose }) => {
   const [formData, setFormData] = useState({
@@ -76,42 +77,27 @@ const InstructorSignupForm = ({ onClose }) => {
       submitData.append("profile_picture", files.profile_picture);
     }
 
-    //   try {
-    //     await registerInstructor(submitData);
-    //     toast.success(
-    //       "Registration successful! Please check your email to verify your account. Your instructor profile will be reviewed by an admin."
-    //     );
-    //     onClose();
-    //   } catch (err) {
-    //     console.error("Registration error:", err);
-    //     setError(
-    //       err.detail ||
-    //         (typeof err === "object" && Object.values(err).flat().join(", ")) ||
-    //         "Registration failed. Please try again."
-    //     );
-    //   } finally {
-    //     setLoading(false);
-    //   }
-    // };
     try {
-      // Use the correct endpoint for instructor registration
       const response = await axios.post(
-        "http://localhost:8000/api/register/",
-        formData
+        "http://localhost:8000/api/instructors/register/",  // Updated endpoint
+        submitData,  // Use submitData instead of formData
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',  // Important for file upload
+          },
+        }
       );
 
-      console.log("Registration successful:", response.data);
-
-      // Show success message or redirect
-      setSuccess(true);
-      // Optionally redirect to login
-      // navigate('/login');
+      if (response.status === 201) {
+        toast.success("Registration successful! Please check your email to verify your account.");
+        onClose();
+      }
     } catch (error) {
       console.error("Registration error:", error);
       setError(
         error.response?.data?.detail ||
-          error.response?.data?.error ||
-          "Registration failed. Please try again."
+        error.response?.data?.error ||
+        "Registration failed. Please try again."
       );
     } finally {
       setLoading(false);

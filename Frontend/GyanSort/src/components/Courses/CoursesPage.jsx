@@ -274,10 +274,22 @@ import React, { useState, useEffect } from "react";
                    </button>
                  </div>
                </div>
+
+               {/* View All Courses Button */}
+               <div className="flex justify-center mt-8">
+                 <button
+                   onClick={() => navigate('/allcourses')}
+                   className="py-3 px-8 rounded-md bg-[#00FF40] hover:bg-[#00DD30] text-black font-semibold transition-colors duration-300 flex items-center gap-2"
+                 >
+                   View All Courses
+                 </button>
+               </div>
+
              </>
            )}
          </div>
        </section>
+       
        {/* Footer */}
        <footer className="bg-gray-900 py-8 mt-16">
          <div className="container mx-auto px-4 text-center text-gray-400">

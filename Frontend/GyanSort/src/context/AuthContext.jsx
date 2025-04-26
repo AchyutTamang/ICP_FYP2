@@ -156,6 +156,7 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
+  // Replace the existing login function with this updated version
   const login = (userData, role, token, refreshToken) => {
     console.log("Login data:", userData, role);
 
@@ -177,7 +178,7 @@ export const AuthProvider = ({ children }) => {
         userData.profilePicture ||
         userData.profile_pic ||
         null;
-
+      userWithFullName.email = userData.email; // Store email explicitly
       console.log("Processed instructor data:", userWithFullName);
     } else {
       // For students
@@ -188,6 +189,7 @@ export const AuthProvider = ({ children }) => {
           : "Student");
       userWithFullName.profilePicture =
         userData.profile_pic || userData.profilePicture || null;
+      userWithFullName.email = userData.email; // Store email explicitly
     }
     console.log("Processed login data:", userWithFullName);
 
@@ -197,6 +199,7 @@ export const AuthProvider = ({ children }) => {
     }
     localStorage.setItem("user_role", role);
     localStorage.setItem("user_info", JSON.stringify(userWithFullName));
+    localStorage.setItem("user_email", userWithFullName.email); // Store email in localStorage
 
     setIsAuthenticated(true);
     setUserRole(role);
@@ -323,3 +326,39 @@ export const AuthProvider = ({ children }) => {
 };
 
 export default AuthProvider;
+
+
+// Inside the login function
+const login = async (email, password, role) => {
+  try {
+    setLoading(true);
+    
+    // Determine which API endpoint to use based on role
+    const endpoint = role === 'instructor' ? '/instructors/login/' : '/students/login/';
+    
+    const response = await api.post(endpoint, {
+      email,
+      password,
+    });
+    
+    const { access, refresh } = response.data;
+    
+    // Store tokens and user info in localStorage
+    localStorage.setItem('access_token', access);
+    localStorage.setItem('refresh_token', refresh);
+    localStorage.setItem('user_role', role);
+    localStorage.setItem('user_email', email);  // Store the email
+    
+    // Set auth state
+    setIsAuthenticated(true);
+    setUserRole(role);
+    setUserEmail(email);
+    
+    return true;
+  } catch (error) {
+    console.error('Login error:', error);
+    return false;
+  } finally {
+    setLoading(false);
+  }
+};

@@ -9,6 +9,7 @@ import {
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 
+
 const CourseCard = ({
   course,
   onAddToCart,
@@ -22,6 +23,7 @@ const CourseCard = ({
   const [showBottomFavoriteTooltip, setShowBottomFavoriteTooltip] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [isAddingToFavorites, setIsAddingToFavorites] = useState(false);
+  
 
   // Generate star rating display
   const renderRating = (rating) => {
@@ -109,7 +111,9 @@ const CourseCard = ({
                 ? "Add to favorites"
                 : ""
             }
-            disabled={!isAuthenticated || userRole !== "student" || isAddingToFavorites}
+            disabled={
+              !isAuthenticated || userRole !== "student" || isAddingToFavorites
+            }
             onMouseEnter={() =>
               !isAuthenticated || userRole !== "student"
                 ? setShowFavoriteTooltip(true)
@@ -173,7 +177,11 @@ const CourseCard = ({
             <div className="relative">
               <button
                 onClick={handleAddToFavorites}
-                disabled={!isAuthenticated || userRole !== "student" || isAddingToFavorites}
+                disabled={
+                  !isAuthenticated ||
+                  userRole !== "student" ||
+                  isAddingToFavorites
+                }
                 title={
                   isAuthenticated && userRole === "student"
                     ? "Add to Favorite"
@@ -210,7 +218,9 @@ const CourseCard = ({
             <div className="relative">
               <button
                 onClick={handleAddToCart}
-                disabled={!isAuthenticated || userRole !== "student" || isAddingToCart}
+                disabled={
+                  !isAuthenticated || userRole !== "student" || isAddingToCart
+                }
                 title={
                   isAuthenticated && userRole === "student"
                     ? "Add to cart"
@@ -245,6 +255,7 @@ const CourseCard = ({
           </div>
         </div>
       </div>
+      
     </div>
   );
 };
