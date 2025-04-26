@@ -9,13 +9,14 @@ from django.conf import settings
 from .models import Student
 from django.utils.html import strip_tags
 from django.core.mail import EmailMultiAlternatives
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from .serializers import LogoutSerializer
 import urllib.parse
 import traceback
  
 from .serializers import StudentRegistrationSerializer as RegisterSerializer, StudentLoginSerializer as LoginSerializer, StudentProfileSerializer as StudentSerializer
 
 class RegisterView(APIView):
-     
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         print("serializer:", serializer.is_valid())
@@ -24,8 +25,8 @@ class RegisterView(APIView):
             # Convert token to string explicitly
             token = str(RefreshToken.for_user(user).access_token)
             
-            # Update verification URL to point to React frontend
-            verification_url = f"http://localhost:5173/api/students/verify-email/{token}"
+            # Update verification URL to match the backend endpoint
+            verification_url = f"http://localhost:8000/api/students/verify-email/{token}/"
 
             # Create HTML email with button
             html_content = f"""
@@ -47,8 +48,7 @@ class RegisterView(APIView):
                     <p>Hello {user.fullname},</p>
                     <p>Thank you for registering with GyanSort. Please verify your email address to complete your registration.</p>
                     <p><a href="{verification_url}" class="button">Verify Email Address</a></p>
-                    <p>Or copy and paste this link in your browser:</p>
-                    <p>{verification_url}</p>
+                  
                     <p>This link will expire in 60 minutes.</p>
                     <p>If you did not register for GyanSort, please ignore this email.</p>
                     <div class="footer">
@@ -93,70 +93,64 @@ class RegisterView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class VerifyEmail(APIView):
+    permission_classes = [AllowAny]
+
     def get(self, request, token):
         try:
-            print(f"Attempting to verify email with token: {token}")
+            print(f"Received verification request with token: {token}")
             
             # Handle potential URL encoding issues
             token = urllib.parse.unquote(token)
             
-            # Try to decode the token
             try:
+                # Decode the token
                 token_obj = AccessToken(token)
-                user_id = token_obj['user_id']  # Changed from payload.get to direct access
+                user_id = token_obj['user_id']  # Access user_id directly
+                print(f"Decoded user_id: {user_id}")
+                
+                user = Student.objects.get(id=user_id)
+                print(f"Found user: {user.email}")
+                
+                if user.email_verified:
+                    print("User already verified")
+                    return Response({
+                        'success': True,
+                        'message': 'Email already verified',
+                        'redirect': '/login'
+                    }, status=status.HTTP_200_OK)
+                
+                # Update user verification status
+                user.is_active = True
+                user.email_verified = True
+                user.save()
+                print(f"User {user.email} verified successfully")
+                
+                return Response({
+                    'success': True,
+                    'message': 'Email verified successfully',
+                    'redirect': '/login'
+                }, status=status.HTTP_200_OK)
+                
             except TokenError as e:
                 print(f"Token error: {str(e)}")
                 return Response({
                     'success': False,
                     'message': 'Invalid or expired verification token'
                 }, status=status.HTTP_400_BAD_REQUEST)
-            
-            if not user_id:
-                print("No user_id found in token")
-                return Response({
-                    'success': False,
-                    'message': 'Invalid verification token - no user ID found.'
-                }, status=status.HTTP_400_BAD_REQUEST)
-                
-            try:
-                user = Student.objects.get(id=user_id)
-                print(f"Found user: {user.email}")
-                
-                if user.email_verified:
-                    return Response({
-                        'success': False,
-                        'message': 'Email already verified',
-                        'redirect': 'http://localhost:5173/login'
-                    }, status=status.HTTP_400_BAD_REQUEST)
-                
-                # Update user verification status
-                user.is_active = True
-                user.email_verified = True
-                user.verification_status = 'verified'
-                user.save()
-                
-                print(f"User {user.email} successfully verified")
-                return Response({
-                    'success': True,
-                    'message': 'Email verified successfully',
-                    'redirect': 'http://localhost:5173/login'
-                }, status=status.HTTP_200_OK)
-                
             except Student.DoesNotExist:
-                print(f"User with ID {user_id} not found")
+                print("User not found")
                 return Response({
                     'success': False,
                     'message': 'User not found'
                 }, status=status.HTTP_404_NOT_FOUND)
                 
         except Exception as e:
-            print(f"Error verifying email: {str(e)}")
+            print(f"Unexpected error: {str(e)}")
             print(traceback.format_exc())
             return Response({
                 'success': False,
-                'message': 'Verification failed. Please try again or contact support.',
-                'redirect': 'http://localhost:5173/signup'
-            }, status=status.HTTP_400_BAD_REQUEST)             
+                'message': 'Verification failed. Please try again or contact support.'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 class LoginView(APIView):
     def post(self, request):
@@ -196,3 +190,23 @@ class ProfileView(APIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# Then your LogoutView class should work correctly
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        try:
+            # Get the refresh token from the request
+            refresh_token = request.data.get('refresh')
+            if not refresh_token:
+                return Response({"error": "Refresh token is required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Blacklist the token
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            
+            return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

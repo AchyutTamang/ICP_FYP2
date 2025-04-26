@@ -12,6 +12,8 @@ from .tokens import InstructorRefreshToken
 from .models import Instructor
 from .serializers import InstructorRegistrationSerializer, InstructorLoginSerializer, InstructorProfileSerializer,LogoutSerializer
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from django.template.loader import render_to_string
+from django.utils.html import strip_tags
 
 class RegisterView(APIView):
     permission_classes = [AllowAny] 
@@ -46,10 +48,7 @@ class RegisterView(APIView):
                     <p>Hello {user.fullname},</p>
                     <p>Thank you for registering with GyanSort as an instructor. Please verify your email address to continue the verification process.</p>
                     <p><a href="{verification_url}" class="button">Verify Email Address</a></p>
-                    <p>Or copy and paste this link in your browser:</p>
-                    <p>{verification_url}</p>
-                    <p>This link will expire in 60 minutes.</p>
-                    <p>After email verification, our admin team will review your submitted documents and approve your instructor account.</p>
+                
                     <div class="footer">
                         <p>Best regards,<br>The GyanSort Team</p>
                     </div>
@@ -196,105 +195,6 @@ class LoginView(APIView):
                 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
       
-# class ProfileView(APIView):
-#     permission_classes = [IsAuthenticated]
-    
-#     def get(self, request):
-#         # Get the token from the request
-#         auth_header = request.headers.get('Authorization', '')
-#         if not auth_header.startswith('Bearer '):
-#             return Response({"error": "Invalid authorization header"}, status=status.HTTP_401_UNAUTHORIZED)
-        
-#         token = auth_header.split(' ')[1]
-        
-#         # Decode the token to get the user ID
-#         try:
-#             # Import the necessary modules
-#             from rest_framework_simplejwt.tokens import AccessToken
-#             from django.conf import settings
-#             import jwt
-            
-#             # Decode the token
-#             decoded_token = jwt.decode(
-#                 token,
-#                 settings.SECRET_KEY,
-#                 algorithms=["HS256"]
-#             )
-            
-#             user_id = decoded_token.get('user_id')
-#             print(f"Token decoded, user_id from token: {user_id}")
-            
-#             # Get the instructor by ID
-#             try:
-#                 instructor = Instructor.objects.get(id=user_id)
-#                 print(f"Found instructor by ID: {instructor.email}")
-                
-#                 serializer = InstructorProfileSerializer(instructor)
-#                 data = serializer.data
-                
-#                 # Ensure email is included
-#                 if 'email' not in data:
-#                     data['email'] = instructor.email
-                    
-#                 print(f"Returning instructor profile for {instructor.email}: {data}")
-#                 return Response(data, status=status.HTTP_200_OK)
-                
-#             except Instructor.DoesNotExist:
-#                 print(f"No instructor found with ID: {user_id}")
-#                 return Response(
-#                     {"error": f"No instructor found with ID: {user_id}"}, 
-#                     status=status.HTTP_404_NOT_FOUND
-#                 )
-                
-#         except Exception as e:
-#             print(f"Error decoding token: {str(e)}")
-#             return Response(
-#                 {"error": f"Invalid token: {str(e)}"}, 
-#                 status=status.HTTP_401_UNAUTHORIZED
-#             )
-    
-#     def put(self, request):
-#         # Similar approach for the PUT method
-#         auth_header = request.headers.get('Authorization', '')
-#         if not auth_header.startswith('Bearer '):
-#             return Response({"error": "Invalid authorization header"}, status=status.HTTP_401_UNAUTHORIZED)
-        
-#         token = auth_header.split(' ')[1]
-        
-#         try:
-#             from rest_framework_simplejwt.tokens import AccessToken
-#             from django.conf import settings
-#             import jwt
-            
-#             decoded_token = jwt.decode(
-#                 token,
-#                 settings.SECRET_KEY,
-#                 algorithms=["HS256"]
-#             )
-            
-#             user_id = decoded_token.get('user_id')
-            
-#             try:
-#                 instructor = Instructor.objects.get(id=user_id)
-#                 serializer = InstructorProfileSerializer(instructor, data=request.data, partial=True)
-#                 if serializer.is_valid():
-#                     serializer.save()
-#                     return Response(serializer.data, status=status.HTTP_200_OK)
-#                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-                
-#             except Instructor.DoesNotExist:
-#                 return Response(
-#                     {"error": f"No instructor found with ID: {user_id}"}, 
-#                     status=status.HTTP_404_NOT_FOUND
-#                 )
-                
-#         except Exception as e:
-#             return Response(
-#                 {"error": f"Invalid token: {str(e)}"}, 
-#                 status=status.HTTP_401_UNAUTHORIZED
-#             )
-
-# After the LoginView class and before the LogoutView class
 
 class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -462,3 +362,111 @@ class LogoutView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+def send_verification_status_email(instructor, status):
+    subject_map = {
+        'verified': 'Your GyanSort Instructor Account has been Verified',
+        'rejected': 'GyanSort Instructor Account Status Update',
+        'under_review': 'Your GyanSort Instructor Account is Under Review',
+        'pending': 'GyanSort Instructor Account Status Update'
+    }
+
+    message_map = {
+        'verified': f"""
+            <p>Congratulations! Your instructor account has been verified. You can now start creating and publishing courses on GyanSort.</p>
+            <p>Get started by logging into your account and accessing the instructor dashboard.</p>
+        """,
+        'rejected': f"""
+            <p>We regret to inform you that your instructor account verification was not successful at this time.</p>
+            <p>This could be due to incomplete or insufficient documentation. Please contact our support team for more information.</p>
+        """,
+        'under_review': f"""
+            <p>Your instructor account is currently under review by our admin team.</p>
+            <p>We'll notify you once the review process is complete. This usually takes 1-2 business days.</p>
+        """,
+        'pending': f"""
+            <p>Your instructor account status is pending verification.</p>
+            <p>Please ensure you have submitted all required documentation for the verification process.</p>
+        """
+    }
+
+    # Create HTML email content
+    html_content = f"""
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }}
+            .container {{ padding: 20px; }}
+            h1 {{ color: #00AA44; }}
+            .message {{ margin: 20px 0; }}
+            .footer {{ margin-top: 30px; font-size: 12px; color: #666; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>GyanSort Instructor Account Update</h1>
+            <p>Hello {instructor.fullname},</p>
+            <div class="message">
+                {message_map[status]}
+            </div>
+            <div class="footer">
+                <p>Best regards,<br>The GyanSort Team</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+    # Create plain text version
+    text_content = strip_tags(html_content)
+
+    # Send email
+    email = EmailMultiAlternatives(
+        subject_map[status],
+        text_content,
+        settings.EMAIL_HOST_USER,
+        [instructor.email]
+    )
+    email.attach_alternative(html_content, "text/html")
+    email.send()
+
+# Add a new view for updating verification status
+class UpdateVerificationStatus(APIView):
+    permission_classes = [IsAuthenticated]  # Add appropriate permission class for admin
+
+    def post(self, request, instructor_id):
+        try:
+            instructor = Instructor.objects.get(id=instructor_id)
+            new_status = request.data.get('verification_status')
+            
+            if new_status not in ['verified', 'rejected', 'under_review', 'pending']:
+                return Response(
+                    {"error": "Invalid verification status"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Update status
+            instructor.verification_status = new_status
+            instructor.save()
+
+            # Send email notification
+            send_verification_status_email(instructor, new_status)
+
+            return Response({
+                "message": f"Instructor verification status updated to {new_status}",
+                "instructor_id": instructor_id,
+                "new_status": new_status
+            }, status=status.HTTP_200_OK)
+
+        except Instructor.DoesNotExist:
+            return Response(
+                {"error": "Instructor not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

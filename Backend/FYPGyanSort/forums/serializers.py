@@ -15,13 +15,26 @@ class SimpleInstructorSerializer(serializers.ModelSerializer):
         fields = ['id', 'email', 'fullname', 'verification_status']
 
 class ForumSerializer(serializers.ModelSerializer):
-    created_by_details = SimpleInstructorSerializer(source='created_by', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+    created_by_profile_picture = serializers.SerializerMethodField()
     
     class Meta:
         model = Forum
-        fields = ['id', 'title', 'description', 'course', 'created_by', 'created_at', 'is_active', 'created_by_details']
-        read_only_fields = ['created_at', 'created_by']
-
+        fields = ['id', 'title', 'description', 'created_by', 'created_at', 
+                  'is_active', 'created_by_name', 'created_by_profile_picture']
+    
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return obj.created_by.fullname or obj.created_by.email
+        return "Unknown Instructor"
+    
+    def get_created_by_profile_picture(self, obj):
+        if obj.created_by and obj.created_by.profile_picture:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.created_by.profile_picture.url)
+            return obj.created_by.profile_picture.url
+        return None
 
 class ForumMembershipSerializer(serializers.ModelSerializer):
     student_details = SimpleStudentSerializer(source='student', read_only=True)

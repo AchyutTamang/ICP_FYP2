@@ -10,91 +10,61 @@ class IsVerifiedInstructor(permissions.BasePermission):
     """
     Custom permission to only allow verified instructors to create forums.
     """
-    message = "Only verified instructors can create forums."
-
     def has_permission(self, request, view):
-        # Print detailed debugging information
-        print(f"REQUEST USER: {request.user}, Authenticated: {request.user.is_authenticated}")
+        print(f"IsVerifiedInstructor check for user: {request.user.email}")
+        print(f"Request method: {request.method}")
         
-        # Debug JWT token
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        token_email = None
+        # For OPTIONS requests, always return True to allow CORS preflight
+        if request.method == 'OPTIONS':
+            print("OPTIONS request - allowing for CORS preflight")
+            return True
         
+        # Check JWT token directly
+        auth_header = request.headers.get('Authorization', '')
         if auth_header.startswith('Bearer '):
             token = auth_header.split(' ')[1]
             try:
-                # Try to decode the token to see what's in it
-                decoded = jwt.decode(token, options={"verify_signature": False})
-                print(f"Decoded token: {decoded}")
+                import jwt
+                from django.conf import settings
+                decoded = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
+                print(f"Token decoded: {decoded}")
                 
-                # Check if the token contains the expected user
-                if 'email' in decoded:
-                    token_email = decoded['email']
-                    print(f"Token email: {token_email}")
+                # If token indicates this is an instructor
+                if decoded.get('user_type') == 'instructor':
+                    email = decoded.get('email')
+                    print(f"Token is for instructor: {email}")
                     
-                    # If token email doesn't match authenticated user, try to use token email instead
-                    if token_email != request.user.email:
-                        print(f"Token email ({token_email}) doesn't match authenticated user ({request.user.email})")
-                        
-                        # Try to find instructor by token email
-                        try:
-                            from instructors.models import Instructor
-                            
-                            instructor = Instructor.objects.get(email=token_email)
-                            print(f"Found instructor from token: {instructor}")
-                            
-                            # Check if this instructor is verified
-                            if hasattr(instructor, 'verification_status') and instructor.verification_status == 'verified':
-                                print(f"Instructor from token is verified: {instructor.verification_status}")
-                                
-                                # Store the instructor directly on the request object
-                                # This will be used in the view's perform_create method
-                                request.instructor_from_token = instructor
-                                
-                                # Also add an instructor attribute to the user object
-                                # This is a workaround for the view trying to access request.user.instructor
-                                setattr(request.user, 'instructor', instructor)
-                                print(f"Added instructor attribute to user: {instructor}")
-                                
-                                return True
-                        except Exception as e:
-                            print(f"Error finding instructor from token: {e}")
+                    from instructors.models import Instructor
+                    try:
+                        instructor = Instructor.objects.get(email=email)
+                        print(f"Found instructor by token email: {instructor}")
+                        # Temporarily attach the instructor to the user
+                        setattr(request.user, 'instructor', instructor)
+                        return instructor.email_verified
+                    except Instructor.DoesNotExist:
+                        print(f"No instructor found with email from token: {email}")
             except Exception as e:
                 print(f"Error decoding token: {e}")
         
-        # Allow GET requests for all users
-        if request.method in permissions.SAFE_METHODS:
-            return True
-        
-        # First check if the user has an instructor attribute
+        # Continue with existing checks
         if hasattr(request.user, 'instructor'):
-            instructor = request.user.instructor
-            print(f"User has instructor attribute: {instructor}")
-            
-            # Check verification status
-            has_status = hasattr(instructor, 'verification_status')
-            status_value = getattr(instructor, 'verification_status', None)
-            print(f"Verification status: {status_value}")
-            
-            return has_status and status_value and status_value.lower() == 'verified'
+            print(f"User has instructor attribute: {request.user.instructor}")
+            return request.user.instructor.email_verified
         
-        # If no instructor attribute, try to find by email
-        print(f"User {request.user} does not have instructor attribute, checking by email")
+        # Try to find instructor by user email
+        from instructors.models import Instructor
         try:
-            from instructors.models import Instructor
-            # Check if there's an instructor with this email
             instructor = Instructor.objects.get(email=request.user.email)
-            print(f"Found instructor by email: {instructor}")
+            print(f"Found instructor by user email: {instructor}")
+            # Temporarily attach the instructor to the user
+            setattr(request.user, 'instructor', instructor)
+            return instructor.email_verified
+        except Instructor.DoesNotExist:
+            print(f"No instructor found with email: {request.user.email}")
             
-            # Check if this instructor is verified
-            is_verified = instructor.verification_status == 'verified'
-            print(f"Instructor verification status: {instructor.verification_status}, Is verified: {is_verified}")
-            
-            return is_verified
-        except Exception as e:
-            print(f"Error finding instructor: {e}")
-            return False
- 
+        print("Permission denied - user is not a verified instructor")
+        return False
+
 class IsVerifiedStudent(permissions.BasePermission):
     """
     Custom permission to only allow verified students to join forums.

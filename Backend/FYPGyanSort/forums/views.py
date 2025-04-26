@@ -18,6 +18,30 @@ class ForumViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         
+        # For list action, return all forums (not just active ones)
+        if self.action == 'list':
+            print(f"Listing forums for user: {user.email}")
+            
+            # For anonymous users or public access
+            if self.request.method == 'GET' and not self.request.user.is_authenticated:
+                print("Anonymous user - returning all forums")
+                return Forum.objects.all()  # Return all forums, not just active ones
+            
+            # Instructors can see all forums plus ones they created
+            if hasattr(user, 'instructor'):
+                print(f"User is instructor: {user.instructor.email}")
+                return Forum.objects.all().distinct()  # Return all forums
+            
+            # Students can see all forums plus ones they are members of
+            if hasattr(user, 'student'):
+                print(f"User is student: {user.student.email}")
+                return Forum.objects.all().distinct()  # Return all forums
+            
+            # Default case - return all forums
+            print("Default case - returning all forums")
+            return Forum.objects.all()  # Return all forums, not just active ones
+        
+        # Rest of the method remains unchanged
         # Instructors can see forums they created
         if hasattr(user, 'instructor'):
             return Forum.objects.filter(created_by=user.instructor)
@@ -31,17 +55,53 @@ class ForumViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         
-        if hasattr(user, 'instructor'):
-            sender_type = 'instructor'
-            sender_id = user.instructor.id
-        elif hasattr(user, 'student'):
-            sender_type = 'student'
-            sender_id = user.student.id
-        else:
-            # Fix: Use the correct PermissionDenied from exceptions
-            raise PermissionDenied("Invalid user type")
+        print("=" * 50)
+        print("FORUM CREATION ATTEMPT")
+        print(f"Request method: {self.request.method}")
+        print(f"Request content type: {self.request.content_type}")
+        print(f"Request data: {self.request.data}")
+        print(f"User: {user.email} (ID: {user.id})")
+        print(f"Has instructor attribute: {hasattr(user, 'instructor')}")
         
-        serializer.save(sender_type=sender_type, sender_id=sender_id)
+        # Check for instructor headers
+        instructor_email = self.request.headers.get('X-User-Email')
+        is_instructor_request = self.request.data.get('is_instructor_request', False)
+        
+        print(f"X-User-Email header: {instructor_email}")
+        print(f"is_instructor_request flag: {is_instructor_request}")
+        
+        # If instructor headers are present, try to find the instructor by email
+        if instructor_email:
+            from instructors.models import Instructor
+            try:
+                instructor = Instructor.objects.get(email=instructor_email)
+                print(f"Found instructor by email header: {instructor}")
+                serializer.save(created_by=instructor, is_active=True)
+                print("Forum created successfully with instructor from header")
+                return
+            except Instructor.DoesNotExist:
+                print(f"No instructor found with email: {instructor_email}")
+        
+        # Fall back to checking if the user has an instructor attribute
+        if hasattr(user, 'instructor'):
+            print(f"Using instructor from user object: {user.instructor}")
+            serializer.save(created_by=user.instructor, is_active=True)
+            print("Forum created successfully with instructor from user object")
+            return
+        
+        # Try to find if this user has an instructor profile by email
+        from instructors.models import Instructor
+        try:
+            instructor = Instructor.objects.get(email=user.email)
+            print(f"Found instructor by user email: {instructor}")
+            serializer.save(created_by=instructor, is_active=True)
+            print("Forum created successfully with instructor found by email")
+            return
+        except Instructor.DoesNotExist:
+            print(f"No instructor profile found for user: {user.email}")
+            
+        print("FORUM CREATION FAILED - No valid instructor found")
+        raise PermissionDenied("Only instructors can create forums")
     
     @action(detail=True, methods=['post'], url_path='join')
     def join(self, request, pk=None, forum_id=None):
@@ -395,3 +455,47 @@ class ForumAttachmentViewSet(viewsets.ModelViewSet):
         except Exception as e:
             print(f"Error creating attachment: {str(e)}")
             raise PermissionDenied(f"Error creating attachment: {str(e)}")
+
+
+@action(detail=False, methods=['post', 'get'], url_path='test-auth')
+def test_auth(self, request):
+        print("=" * 50)
+        print("TEST AUTH ENDPOINT REACHED")
+        print(f"Request method: {request.method}")
+        print(f"User: {request.user.email} (ID: {request.user.id})")
+        print(f"Has instructor attribute: {hasattr(request.user, 'instructor')}")
+        print(f"Has student attribute: {hasattr(request.user, 'student')}")
+        print(f"Headers: {request.headers}")
+        
+        # Check token information
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+            print(f"Token: {token[:10]}...")
+            
+            # Decode token to check payload
+            import jwt
+            from django.conf import settings
+            try:
+                decoded = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
+                print(f"Decoded token: {decoded}")
+            except Exception as e:
+                print(f"Error decoding token: {e}")
+        
+        # Return user information
+        response_data = {
+            "email": request.user.email,
+            "user_id": request.user.id,
+            "is_instructor": hasattr(request.user, 'instructor'),
+            "is_student": hasattr(request.user, 'student')
+        }
+        
+        if hasattr(request.user, 'instructor'):
+            response_data["instructor_email"] = request.user.instructor.email
+            response_data["instructor_id"] = request.user.instructor.id
+            
+        if hasattr(request.user, 'student'):
+            response_data["student_email"] = request.user.student.email
+            response_data["student_id"] = request.user.student.id
+            
+        return Response(response_data, status=status.HTTP_200_OK)

@@ -28,3 +28,7 @@ class StudentProfileSerializer(serializers.ModelSerializer):
         model = Student
         fields = ('id', 'fullname', 'email', 'profile_pic', 'student_id', 'enrollment_count', 'date_joined')
         read_only_fields = ('id', 'student_id', 'enrollment_count', 'date_joined')
+
+
+class LogoutSerializer(serializers.Serializer):
+    refresh = serializers.CharField()
