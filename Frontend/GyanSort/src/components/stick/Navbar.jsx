@@ -554,6 +554,7 @@ import { useCart } from "../../context/CartContext";
 // Create context for opening auth modal
 export const AuthModalContext = createContext();
 
+
 function Navbar() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState("login");

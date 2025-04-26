@@ -5,7 +5,7 @@ import axios from "axios";
 const API_URL = "http://localhost:8000/api"; // Adjust this to match your backend URL
 
 // Create the context outside of any component
-const AuthContext = createContext();
+export const AuthContext = createContext();
 
 // Define the useAuth hook before the provider
 export const useAuth = () => useContext(AuthContext);

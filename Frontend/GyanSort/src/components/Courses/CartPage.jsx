@@ -9,30 +9,38 @@ import axios from "axios";
 
 // Make sure the component name matches what you're exporting
 const CartPage = () => {
-  const { cartItems, loading, removeFromCart, addToFavorites, fetchCartItems } =
-    useCart();
+  const { cartItems, removeFromCart, fetchCartItems } = useCart();
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [totalPrice, setTotalPrice] = useState(0);
-  const { isAuthenticated, userRole } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Redirect if not authenticated or not a student
-    if (!isAuthenticated) {
-      navigate("/");
-      toast.error("Please login to view your cart");
-      return;
-    }
+    const loadCart = async () => {
+      try {
+        if (!user) {
+          navigate("/login");
+          return;
+        }
+        console.log("Fetching cart items..."); // Debug log
+        await fetchCartItems();
+        console.log("Cart items fetched:", cartItems); // Debug log
+        setLoading(false);
+      } catch (err) {
+        console.error("Error loading cart:", err);
+        setError(err.message);
+        setLoading(false);
+      }
+    };
 
-    if (userRole !== "student") {
-      navigate("/");
-      toast.error("Only students can access cart");
-      return;
-    }
+    loadCart();
+  }, [user, navigate, fetchCartItems]);
 
-    // Refresh cart items
-    fetchCartItems();
-  }, [isAuthenticated, userRole, navigate, fetchCartItems]);
+  // Add this debug log
+  useEffect(() => {
+    console.log("Current cart items:", cartItems);
+  }, [cartItems]);
 
   // Calculate total price whenever cart items change
   useEffect(() => {

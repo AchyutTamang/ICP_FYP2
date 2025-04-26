@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext } from "react";
 import Navbar from "../components/Stick/Navbar";
 import Footer from "../components/Stick/Footer";
 import styled from "@emotion/styled";
-import CourseCard from "../components/Courses/coursecard";
+import CourseCard from "../components/Courses/CourseCard";
 import { FaSearch, FaArrowRight, FaArrowLeft } from "react-icons/fa";
 import axios from 'axios';
 import { AuthContext } from "../context/AuthContext";

@@ -25,7 +25,6 @@ import AllCourses from "./pages/AllCourses";
 import { AuthProvider } from "./context/AuthContext";
 
 
-
 // Debug component to help diagnose routing issues
 const RouteDebugger = () => {
   const location = useLocation();
@@ -100,11 +99,115 @@ const HomeRoute = () => {
 function App() {
   return (
     <>
-      <AuthProvider>
-        <CartProvider>
-          {/* Your app components */}
-        </CartProvider>
-      </AuthProvider>
+      <CartProvider>
+        <RouteDebugger />
+        <Routes>
+          <Route path="/" element={<HomeRoute />} />
+          <Route
+            path="/student"
+            element={
+              <ProtectedRoute requiredRole="student">
+                <StudentHome />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/instructor"
+            element={
+              <ProtectedRoute requiredRole="instructor">
+                <InstructorHome />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/studenthome"
+            element={<Navigate to="/student" replace />}
+          />
+          <Route
+            path="/InstructorHome"
+            element={<Navigate to="/instructor" replace />}
+          />
+          <Route path="/courses" element={<CoursesPage />} />
+          <Route
+            path="/cart"
+            element={
+              <ProtectedRoute requiredRole="student">
+                <CartPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/wishlist"
+            element={
+              <ProtectedRoute requiredRole="student">
+                <FavoritesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/instructor/courses"
+            element={
+              <ProtectedRoute requiredRole="instructor">
+                <InstructorCoursesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/payment/:orderId"
+            element={
+              <ProtectedRoute requiredRole="student">
+                <PaymentPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/order-confirmation/:orderId"
+            element={
+              <ProtectedRoute requiredRole="student">
+                <OrderConfirmationPage />
+              </ProtectedRoute>
+            }
+          />
+          {/* Add a catch-all route */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+
+          {/* Forum routes - fixed to use ProtectedRoute and auth context */}
+          <Route
+            path="/forum"
+            element={
+              <ProtectedRoute>
+                <ForumList />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/forum/create"
+            element={
+              <ProtectedRoute requiredRole="instructor">
+                <CreateForum />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/forums/:forumId/chat"
+            element={
+              <ProtectedRoute>
+                <ForumChat />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/profile/:userId" element={<Profile />} />
+
+          
+            {/* ... existing routes ... */}
+            <Route path="/allcourses" element={<AllCourses />} />
+          
+
+        </Routes>
+      </CartProvider>
     </>
   );
 }
