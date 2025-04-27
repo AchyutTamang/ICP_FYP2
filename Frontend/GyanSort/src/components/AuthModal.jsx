@@ -83,6 +83,23 @@ const AuthModal = ({ isOpen, onClose, type, userType }) => {
                 </div>
 
                 <div className="mt-4 text-center text-sm text-gray-500">
+                  {type === "login" && (
+                    <p className="mb-2">
+                      <button
+                        type="button"
+                        className="text-[#00FF40] hover:underline"
+                        onClick={() => {
+                          onClose();
+                          setTimeout(() => {
+                            window.location.href = '/forgot-password';
+                          }, 100);
+                        }}
+                      >
+                        Forgot Password?
+                      </button>
+                    </p>
+                  )}
+                  
                   {type === "login" ? (
                     <p>
                       Don't have an account?{" "}

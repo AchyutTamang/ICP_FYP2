@@ -75,7 +75,6 @@
 //     }
 //   }, [isAuthenticated, userRole, user]);
 
-
 //   // Helper function to get email from localStorage
 //   const getEmailFromLocalStorage = () => {
 //     try {
@@ -136,7 +135,7 @@
 //       }
 //       return null;
 //     }
-    
+
 //     return user.profile_picture || user.profilePicture;
 //   };
 //     // For instructors, prioritize using the email
@@ -550,10 +549,8 @@ import { useAuth } from "../../context/AuthContext";
 import { toast } from "react-toastify";
 import { useCart } from "../../context/CartContext";
 
-
 // Create context for opening auth modal
 export const AuthModalContext = createContext();
-
 
 function Navbar() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -1015,11 +1012,17 @@ function Navbar() {
                 </>
               ) : (
                 <div className="hidden md:flex items-center space-x-4">
+                
+                    
+                  
+                  
                   {/* Login Dropdown */}
                   <div className="relative group">
+
                     <button className="bg-transparent hover:bg-white text-white hover:text-black border border-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
                       Login
                     </button>
+                    
                     <div className="absolute left-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300">
                       <div
                         className="py-1"
@@ -1311,6 +1314,7 @@ function Navbar() {
             ) : (
               <>
                 <div className="border-t border-gray-700 pt-2 mt-2">
+                  
                   <p className="px-3 py-1 text-xs text-gray-400">Student</p>
                   <button
                     onClick={() => openAuthModal("login", "student")}
