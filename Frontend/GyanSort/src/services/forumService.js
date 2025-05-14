@@ -7,40 +7,91 @@ const forumService = {
   },
 
   // Create a new forum (instructors only)
-  createForum: (forumData) => {
-    // Get the token and email from localStorage
-    const token = localStorage.getItem('access_token');
-    const userEmail = localStorage.getItem('user_email');
-    const userRole = localStorage.getItem('user_role');
+  createForum: async (forumData) => {
+    const token = localStorage.getItem('access');
+    const userEmail = localStorage.getItem('email');
+    const userType = localStorage.getItem('userType');
     
-    console.log("Creating forum with credentials:", {
-      token: token ? token.substring(0, 10) + "..." : "none",
-      email: userEmail,
-      role: userRole
-    });
+    // Try different possible user ID storage keys
+    const userId = localStorage.getItem('userId') || 
+                  localStorage.getItem('user_id') || 
+                  localStorage.getItem('id');
     
-    if (userRole !== 'instructor') {
-      console.error("Only instructors can create forums");
-      return Promise.reject("Only instructors can create forums");
+    // Get user info if available
+    let userInfo = null;
+    try {
+      const userInfoStr = localStorage.getItem('user_info');
+      if (userInfoStr) {
+        userInfo = JSON.parse(userInfoStr);
+      }
+    } catch (e) {
+      console.error('Error parsing user info:', e);
     }
     
-    // Create a new object that includes instructor identification
+    // Check if the instructor is verified
+    if (userType === 'instructor') {
+      const verificationStatus = userInfo?.verification_status || 'pending';
+      if (verificationStatus !== 'verified') {
+        throw new Error('Your account is not verified by admin yet. You cannot create forums until verification is complete.');
+      }
+    }
+    
+    // Get the most reliable user identifier
+    const userIdentifier = userId || 
+                          (userInfo && userInfo.id) || 
+                          (userInfo && userInfo.pk) || 
+                          userEmail;
+    
+    console.log('Forum creation attempt with credentials:', {
+      userType,
+      userEmail,
+      userId,
+      userInfo: userInfo ? 'Available' : 'Not available',
+      userIdentifier
+    });
+    
+    // Make sure we have all required fields
+    if (!forumData.title || !forumData.description) {
+      throw new Error('Title and description are required');
+    }
+    
+    // Prepare the data according to what the backend expects
     const enrichedData = {
-      ...forumData,
-      instructor_email: userEmail,
-      is_instructor_request: true,
-      is_active: true
+      title: forumData.title.trim(),
+      description: forumData.description.trim(),
+      topic: forumData.topic?.trim() || 'General',
+      is_active: true,
+      created_by: userIdentifier
     };
     
-    console.log("Sending forum creation request with data:", enrichedData);
+    console.log('Sending forum data:', enrichedData);
     
-    return api.post("/forums/forums/", enrichedData, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'X-User-Email': userEmail,
-        'X-User-Role': 'instructor'
+    try {
+      const response = await api.post("/forums/forums/", enrichedData, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      console.log('Forum creation successful:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Forum creation error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+      
+      // Check if this is a permission error from the backend
+      if (error.response?.status === 403) {
+        throw new Error('Your account is not verified by admin yet. You cannot create forums until verification is complete.');
       }
-    });
+      
+      throw new Error('Failed to create forum: ' + 
+        (error.response?.data?.created_by || 
+         error.response?.data?.detail || 
+         error.message));
+    }
   },
 
   // Get forum details

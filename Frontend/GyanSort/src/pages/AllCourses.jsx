@@ -107,9 +107,49 @@ const AllCourses = () => {
     loadCourses();
   }, []);
 
+  // Update the context imports and usage
   const { user } = useContext(AuthContext);
-  const { addToCart } = useContext(CartContext);
-
+  const { addToCart, addToFavorites, isInCart, isInFavorites } = useContext(CartContext);
+  
+  // Update the handleAddToCart function
+  const handleAddToCart = async (course) => {
+    if (!user) {
+      alert("Please login to add courses to cart");
+      return;
+    }
+    try {
+      const result = await addToCart(course);
+      if (result.success) {
+        alert("Course added to cart successfully!");
+      }
+    } catch (error) {
+      console.error("Error adding to cart:", error);
+      alert(error.message || "Failed to add course to cart. Please try again.");
+    }
+  };
+  
+  // Update the handleToggleFavorite function
+  const handleToggleFavorite = async (courseId) => {
+    if (!user) {
+      alert("Please login to add favorites");
+      return;
+    }
+    try {
+      const result = await addToFavorites(courseId);
+      if (result.success) {
+        setCourses(courses.map(course => 
+          course.id === courseId 
+            ? { ...course, isFavorite: !course.isFavorite }
+            : course
+        ));
+      }
+    } catch (error) {
+      console.error("Error toggling favorite:", error);
+      alert(error.message || "Failed to update favorite status");
+    }
+  };
+  
+  // Update the CourseCard component usage
   const loadCourses = async () => {
     try {
       const response = await axios.get('http://127.0.0.1:8000/api/courses/courses/');
@@ -119,63 +159,13 @@ const AllCourses = () => {
           ? "Free" 
           : typeof course.course_price === 'number'
             ? `Rs${course.course_price.toFixed(2)}`
-            : "Rs0.00",
-        isFavorite: false // Add favorite status
+            : "Rs0.00"
       }));
       setCourses(formattedCourses);
       setLoading(false);
     } catch (error) {
       console.error("Error loading courses:", error);
       setLoading(false);
-    }
-  };
-
-  const handleAddToCart = async (course) => {
-    if (!user) {
-      alert("Please login to add courses to cart");
-      return;
-    }
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        alert("Authentication token not found. Please login again.");
-        return;
-      }
-      
-      await addToCart(course);
-      alert("Course added to cart successfully!");
-    } catch (error) {
-      console.error("Error adding to cart:", error);
-      if (error.response?.status === 401) {
-        alert("Your session has expired. Please login again.");
-      } else {
-        alert("Failed to add course to cart. Please try again.");
-      }
-    }
-  };
-
-  const handleToggleFavorite = async (courseId) => {
-    if (!user) {
-      alert("Please login to add favorites");
-      return;
-    }
-    try {
-      // Toggle favorite status in the UI
-      setCourses(courses.map(course => 
-        course.id === courseId 
-          ? { ...course, isFavorite: !course.isFavorite }
-          : course
-      ));
-      
-      // Update favorite status in the backend
-      await axios.post(`http://127.0.0.1:8000/api/courses/toggle-favorite/${courseId}/`, {}, {
-        headers: {
-          Authorization: `Bearer ${user.token}`
-        }
-      });
-    } catch (error) {
-      console.error("Error toggling favorite:", error);
-      alert("Failed to update favorite status");
     }
   };
 
@@ -294,6 +284,8 @@ const AllCourses = () => {
                   onAddToCart={() => handleAddToCart(course)}
                   onToggleFavorite={() => handleToggleFavorite(course.id)}
                   isStudent={user?.role === 'student'}
+                  isInCart={isInCart?.(course.id)}
+                  isInFavorites={isInFavorites?.(course.id)}
                 />
               ))}
             </CoursesGrid>

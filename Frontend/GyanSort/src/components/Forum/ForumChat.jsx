@@ -5,7 +5,6 @@ import { useAuth } from "../../context/AuthContext";
 import Navbar from "../stick/Navbar";
 import Footer from "../stick/Footer";
 
-
 const ForumChat = () => {
   const { forumId } = useParams();
   const { user } = useAuth();
@@ -20,10 +19,10 @@ const ForumChat = () => {
       try {
         const forumResponse = await forumService.getForumDetails(forumId);
         setForum(forumResponse.data);
-        
+
         const messagesResponse = await forumService.getMessages(forumId);
         setMessages(messagesResponse.data);
-        
+
         setLoading(false);
       } catch (error) {
         console.error("Error fetching forum details:", error);
@@ -32,14 +31,15 @@ const ForumChat = () => {
     };
 
     fetchForumDetails();
-    
+
     // Set up polling for new messages
     const interval = setInterval(() => {
-      forumService.getMessages(forumId)
-        .then(response => setMessages(response.data))
-        .catch(error => console.error("Error polling messages:", error));
+      forumService
+        .getMessages(forumId)
+        .then((response) => setMessages(response.data))
+        .catch((error) => console.error("Error polling messages:", error));
     }, 5000);
-    
+
     return () => clearInterval(interval);
   }, [forumId]);
 
@@ -51,13 +51,13 @@ const ForumChat = () => {
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
-    
+
     try {
       await forumService.sendMessage({
         forum: forumId,
         content: newMessage,
       });
-      
+
       // Refresh messages
       const response = await forumService.getMessages(forumId);
       setMessages(response.data);
@@ -96,7 +96,7 @@ const ForumChat = () => {
             &larr; Back to Forums
           </Link>
         </div>
-        
+
         <div className="bg-gray-700 bg-opacity-50 rounded-lg shadow-md overflow-hidden">
           {/* Forum Header */}
           <div className="bg-gray-800 bg-opacity-50 p-4 border-b border-gray-600">
@@ -104,7 +104,9 @@ const ForumChat = () => {
               <div className="mr-3">
                 <div className="w-10 h-10 rounded-full bg-gray-600 flex items-center justify-center">
                   <span className="text-white font-bold">
-                    {forum.created_by_name ? forum.created_by_name.charAt(0).toUpperCase() : "K"}
+                    {forum.created_by_name
+                      ? forum.created_by_name.charAt(0).toUpperCase()
+                      : "K"}
                   </span>
                 </div>
               </div>
@@ -116,7 +118,7 @@ const ForumChat = () => {
               </div>
             </div>
           </div>
-          
+
           {/* Messages Area */}
           <div className="p-4 h-[32rem] overflow-y-auto bg-gray-800 bg-opacity-30">
             {messages.length === 0 ? (
@@ -125,13 +127,13 @@ const ForumChat = () => {
               </div>
             ) : (
               messages.map((message) => (
-                <div 
-                  key={message.id} 
+                <div
+                  key={message.id}
                   className={`mb-4 ${
                     message.sender_id === user?.id ? "text-right" : ""
                   }`}
                 >
-                  <div 
+                  <div
                     className={`inline-block rounded-lg px-4 py-2 max-w-xs sm:max-w-md ${
                       message.sender_id === user?.id
                         ? "bg-green-500 text-white"
@@ -151,7 +153,7 @@ const ForumChat = () => {
             )}
             <div ref={messagesEndRef} />
           </div>
-          
+
           {/* Message Input */}
           <div className="border-t border-gray-600 p-4">
             <form onSubmit={handleSendMessage} className="flex">

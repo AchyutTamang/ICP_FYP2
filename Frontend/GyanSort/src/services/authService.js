@@ -460,3 +460,62 @@ export const logoutInstructor = async () => {
   }
 };
 
+// Modify your login function in authService.js
+const login = async (credentials, userType, signal) => {
+  try {
+    // Add a check for network connectivity
+    if (!navigator.onLine) {
+      throw new Error("You appear to be offline. Please check your internet connection.");
+    }
+    
+    // Use the signal for timeout handling
+    const response = await api.post(`/${userType}s/login/`, credentials, {
+      signal: signal,
+      headers: {
+        'Content-Type': 'application/json',
+        // Add a cache-busting parameter to prevent caching issues
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      }
+    });
+    
+    // Process successful response
+    const { access, refresh, user } = response.data;
+    
+    // Store tokens and user info
+    localStorage.setItem('access_token', access);
+    localStorage.setItem('refresh_token', refresh);
+    localStorage.setItem('user_role', userType);
+    localStorage.setItem('user_info', JSON.stringify(user));
+    
+    // Set the token in the API instance for future requests
+    api.defaults.headers.common['Authorization'] = `Bearer ${access}`;
+    
+    return response.data;
+  } catch (error) {
+    console.error('Login error details:', error);
+    
+    if (error.name === 'AbortError') {
+      throw new Error('Request timed out. Please try again.');
+    }
+    
+    if (!navigator.onLine) {
+      throw new Error('You appear to be offline. Please check your internet connection.');
+    }
+    
+    if (error.response) {
+      // Server responded with an error
+      const errorMessage = error.response.data.detail || 
+                          error.response.data.error || 
+                          'Invalid credentials. Please try again.';
+      throw new Error(errorMessage);
+    } else if (error.request) {
+      // Request was made but no response received
+      throw new Error('Unable to connect to the server. Please try again later.');
+    } else {
+      // Something else happened
+      throw new Error('An unexpected error occurred. Please try again.');
+    }
+  }
+};
+

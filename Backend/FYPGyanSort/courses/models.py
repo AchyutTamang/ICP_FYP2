@@ -37,7 +37,7 @@ class Review(models.Model):
     def __str__(self):
         return f"Rating: {self.rating}"
 
-# Course
+
 # Course
 class Course(models.Model):
     instructor = models.ForeignKey(

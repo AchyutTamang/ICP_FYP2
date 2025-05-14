@@ -13,6 +13,9 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from .serializers import LogoutSerializer
 import urllib.parse
 import traceback
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
  
 from .serializers import StudentRegistrationSerializer as RegisterSerializer, StudentLoginSerializer as LoginSerializer, StudentProfileSerializer as StudentSerializer
 
@@ -210,3 +213,121 @@ class LogoutView(APIView):
             return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ForgotPasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email')
+        try:
+            user = Student.objects.get(email=email)
+            token = default_token_generator.make_token(user)
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            
+            # Match the same URL structure as instructor
+            reset_url = f"http://localhost:5173/reset-password/student/{uid}/{token}"
+            
+            html_content = f"""
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                    .container {{ padding: 20px; }}
+                    h1 {{ color: #00AA44; }}
+                    .button {{ background-color: #00FF40; color: #000; padding: 12px 24px; 
+                             text-decoration: none; border-radius: 50px; font-weight: bold; }}
+                    .button:hover {{ background-color: #00DD30; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>Reset Your Student Password</h1>
+                    <p>Hello {user.fullname},</p>
+                    <p>We received a request to reset your student account password.</p>
+                    <p><a href="{reset_url}" class="button">Reset Password</a></p>
+                    <p>If you didn't request this, please ignore this email.</p>
+                    <p>This link will expire in 24 hours.</p>
+                    <div class="footer">
+                        <p>Best regards,<br>The GyanSort Team</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            text_content = f"""
+            Reset Your Password
+            Hello {user.fullname},
+            Click the link below to reset your password:
+            {reset_url}
+            If you didn't request this, please ignore this email.
+            This link will expire in 24 hours.
+            """
+            
+            email = EmailMultiAlternatives(
+                'Reset Your Password - GyanSort',
+                text_content,
+                settings.EMAIL_HOST_USER,
+                [user.email]
+            )
+            email.attach_alternative(html_content, "text/html")
+            email.send()
+            
+            return Response({
+                'message': 'Password reset link sent to your email'
+            }, status=status.HTTP_200_OK)
+            
+        except Student.DoesNotExist:
+            return Response({
+                'error': 'No account found with this email'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+class ResetPasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, uidb64, token):
+        try:
+            print(f"Received reset request - uidb64: {uidb64}, token: {token}")
+            
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = Student.objects.get(pk=uid)
+            print(f"Found user: {user.email}")
+            
+            if default_token_generator.check_token(user, token):
+                new_password = request.data.get('password')
+                print("Token validated successfully")
+                
+                if not new_password:
+                    return Response({
+                        'error': 'Password is required'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Check if the new password is the same as the old password
+                if user.check_password(new_password):
+                    return Response({
+                        'error': 'New password must be different from the current password',
+                        'success': False
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                user.set_password(new_password)
+                user.save()
+                print(f"Password reset successful for user: {user.email}")
+                
+                return Response({
+                    'message': 'Password reset successful',
+                    'success': True
+                }, status=status.HTTP_200_OK)
+            else:
+                print("Invalid token")
+                return Response({
+                    'error': 'Invalid or expired reset link',
+                    'success': False
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+        except Exception as e:
+            print(f"Reset password error: {str(e)}")
+            return Response({
+                'error': 'Invalid reset link or server error',
+                'success': False
+            }, status=status.HTTP_400_BAD_REQUEST)

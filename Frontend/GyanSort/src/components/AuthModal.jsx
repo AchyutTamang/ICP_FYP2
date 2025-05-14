@@ -1,12 +1,24 @@
-import React from "react";
+import React, { useState, useEffect, Fragment } from "react";
 import { Dialog, Transition } from "@headlessui/react";
-import { Fragment } from "react";
 import StudentLoginForm from "./auth/StudentLoginForm";
 import StudentSignupForm from "./auth/StudentSignupForm";
 import InstructorLoginForm from "./auth/InstructorLoginForm";
 import InstructorSignupForm from "./auth/InstructorSignupForm";
 
 const AuthModal = ({ isOpen, onClose, type, userType }) => {
+  // Add these state variables
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // Move the useEffect inside the component
+  useEffect(() => {
+    // Reset error state when modal opens
+    if (isOpen) {
+      setError(null);
+      setLoading(false);
+    }
+  }, [isOpen]);
+
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
@@ -186,3 +198,44 @@ const AuthModal = ({ isOpen, onClose, type, userType }) => {
 };
 
 export default AuthModal;
+
+// Modify your login function to better handle network errors
+const handleLogin = async (e) => {
+  e.preventDefault();
+  setError(null);
+  setLoading(true);
+  
+  try {
+    // Check network connectivity
+    if (!navigator.onLine) {
+      throw new Error("You appear to be offline. Please check your internet connection.");
+    }
+    
+    // Add a timeout to prevent hanging requests
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    
+    const response = await authService.login(credentials, userType, controller.signal);
+    clearTimeout(timeoutId);
+    
+    // Handle successful login
+    setLoading(false);
+    onClose();
+    
+    // Refresh the page to ensure all state is updated
+    window.location.reload();
+  } catch (err) {
+    setLoading(false);
+    console.error("Login error:", err);
+    
+    if (err.name === 'AbortError') {
+      setError("Request timed out. Please try again.");
+    } else if (!navigator.onLine) {
+      setError("You appear to be offline. Please check your internet connection.");
+    } else if (err.message.includes("Network Error")) {
+      setError("Network error. Please check your connection and try again.");
+    } else {
+      setError(err.message || "Login failed. Please try again.");
+    }
+  }
+};

@@ -17,41 +17,31 @@ class ForumViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        
-        # For list action, return all forums (not just active ones)
-        if self.action == 'list':
-            print(f"Listing forums for user: {user.email}")
-            
-            # For anonymous users or public access
-            if self.request.method == 'GET' and not self.request.user.is_authenticated:
-                print("Anonymous user - returning all forums")
-                return Forum.objects.all()  # Return all forums, not just active ones
-            
-            # Instructors can see all forums plus ones they created
-            if hasattr(user, 'instructor'):
-                print(f"User is instructor: {user.instructor.email}")
-                return Forum.objects.all().distinct()  # Return all forums
-            
-            # Students can see all forums plus ones they are members of
-            if hasattr(user, 'student'):
-                print(f"User is student: {user.student.email}")
-                return Forum.objects.all().distinct()  # Return all forums
-            
-            # Default case - return all forums
-            print("Default case - returning all forums")
-            return Forum.objects.all()  # Return all forums, not just active ones
-        
-        # Rest of the method remains unchanged
-        # Instructors can see forums they created
+        print(f"Getting forums for user: {user.email}")
+    
+        # Try to get instructor profile if not already attached
+        if not hasattr(user, 'instructor'):
+            from instructors.models import Instructor
+            try:
+                instructor = Instructor.objects.get(email=user.email)
+                setattr(user, 'instructor', instructor)
+                print(f"Found and attached instructor: {instructor}")
+            except Instructor.DoesNotExist:
+                print("No instructor profile found")
+    
+        # For instructors, show only their created forums
         if hasattr(user, 'instructor'):
+            print(f"Returning forums created by instructor: {user.instructor.email}")
             return Forum.objects.filter(created_by=user.instructor)
         
-        # Students can see forums they are members of
-        if hasattr(user, 'student'):
-            return Forum.objects.filter(memberships__student=user.student, memberships__is_active=True)
+        # For students, show all available forums
+        elif hasattr(user, 'student'):
+            print(f"Returning all forums for student: {user.student.email}")
+            return Forum.objects.all().distinct()
         
-        return Forum.objects.none()
-    
+        # For non-authenticated users, show all forums
+        return Forum.objects.all()
+
     def perform_create(self, serializer):
         user = self.request.user
         
@@ -76,6 +66,12 @@ class ForumViewSet(viewsets.ModelViewSet):
             try:
                 instructor = Instructor.objects.get(email=instructor_email)
                 print(f"Found instructor by email header: {instructor}")
+                
+                # Check verification status
+                if instructor.verification_status != 'verified':
+                    print(f"Instructor {instructor.email} is not verified. Status: {instructor.verification_status}")
+                    raise PermissionDenied("Your account is not verified by admin yet. You cannot create forums until verification is complete.")
+                
                 serializer.save(created_by=instructor, is_active=True)
                 print("Forum created successfully with instructor from header")
                 return
@@ -85,6 +81,12 @@ class ForumViewSet(viewsets.ModelViewSet):
         # Fall back to checking if the user has an instructor attribute
         if hasattr(user, 'instructor'):
             print(f"Using instructor from user object: {user.instructor}")
+            
+            # Check verification status
+            if user.instructor.verification_status != 'verified':
+                print(f"Instructor {user.instructor.email} is not verified. Status: {user.instructor.verification_status}")
+                raise PermissionDenied("Your account is not verified by admin yet. You cannot create forums until verification is complete.")
+            
             serializer.save(created_by=user.instructor, is_active=True)
             print("Forum created successfully with instructor from user object")
             return
@@ -94,6 +96,12 @@ class ForumViewSet(viewsets.ModelViewSet):
         try:
             instructor = Instructor.objects.get(email=user.email)
             print(f"Found instructor by user email: {instructor}")
+            
+            # Check verification status
+            if instructor.verification_status != 'verified':
+                print(f"Instructor {instructor.email} is not verified. Status: {instructor.verification_status}")
+                raise PermissionDenied("Your account is not verified by admin yet. You cannot create forums until verification is complete.")
+            
             serializer.save(created_by=instructor, is_active=True)
             print("Forum created successfully with instructor found by email")
             return

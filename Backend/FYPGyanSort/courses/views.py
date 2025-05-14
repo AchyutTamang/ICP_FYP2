@@ -39,14 +39,41 @@ class CourseViewSet(viewsets.ModelViewSet):
         return CourseSerializer
 
     def get_queryset(self):
-        queryset = Course.objects.all()
-        # For GET requests, show all courses to everyone
-        if self.request.method == 'GET':
-            return queryset
-        # For other methods, filter appropriately
-        if hasattr(self.request.user, 'instructor'):
-            return queryset.filter(instructor=self.request.user.instructor)
-        return queryset.none()
+        # For non-authenticated users
+        if not self.request.user.is_authenticated:
+            print("Non-authenticated user, showing all courses")
+            return Course.objects.all()
+
+        user = self.request.user
+        print(f"Getting courses for user: {user.email}")
+
+        # Try to get instructor profile if not already attached
+        if not hasattr(user, 'instructor'):
+            from instructors.models import Instructor
+            try:
+                instructor = Instructor.objects.get(email=user.email)
+                setattr(user, 'instructor', instructor)
+                print(f"Found and attached instructor: {instructor}")
+            except Instructor.DoesNotExist:
+                print("No instructor profile found")
+
+        # For instructors, show only their created courses
+        if hasattr(user, 'instructor'):
+            print(f"Returning courses created by instructor: {user.instructor.email}")
+            return Course.objects.filter(instructor=user.instructor)
+        
+        # For students and other authenticated users, show all courses
+        return Course.objects.all()
+        
+        # For other actions (create, update, delete)
+        user = self.request.user
+        
+        if hasattr(user, 'instructor'):
+            return Course.objects.filter(instructor=user.instructor)
+        elif hasattr(user, 'student'):
+            return Course.objects.filter(enrolled_students=user.student)
+        
+        return Course.objects.none()
 
     def perform_create(self, serializer):
         # Debug information

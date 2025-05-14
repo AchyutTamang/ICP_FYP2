@@ -1,5 +1,10 @@
 from rest_framework import serializers
 from .models import Course, Category, Review, Content, Lesson, Module
+import boto3
+from botocore.exceptions import NoCredentialsError
+from django.conf import settings
+import os
+import uuid
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -28,6 +33,69 @@ class ContentSerializer(serializers.ModelSerializer):
         model = Content
         fields = ['id', 'lesson', 'title', 'content_type', 'file', 'cloudfront_url', 
                  'text_content', 'order', 'created_at', 'updated_at']
+    
+    def create(self, validated_data):
+        file = validated_data.get('file')
+        content_type = validated_data.get('content_type')
+        
+        # If this is a video file, upload to S3
+        if file and content_type in ['video', 'mp4', 'webm']:
+            s3_url = self.upload_to_s3(file)
+            if s3_url:
+                validated_data['cloudfront_url'] = s3_url
+        
+        return super().create(validated_data)
+    
+    def update(self, instance, validated_data):
+        file = validated_data.get('file')
+        content_type = validated_data.get('content_type')
+        
+        # If this is a video file and it's changed, upload to S3
+        if file and content_type in ['video', 'mp4', 'webm']:
+            s3_url = self.upload_to_s3(file)
+            if s3_url:
+                validated_data['cloudfront_url'] = s3_url
+        
+        return super().update(instance, validated_data)
+    
+    def upload_to_s3(self, file):
+        try:
+            # Generate a unique filename
+            file_extension = os.path.splitext(file.name)[1]
+            unique_filename = f"{uuid.uuid4()}{file_extension}"
+            s3_path = f"gyansort/{unique_filename}"
+            
+            # Initialize S3 client
+            s3_client = boto3.client(
+                's3',
+                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                region_name=settings.AWS_S3_REGION_NAME
+            )
+            
+            # Upload file to S3
+            s3_client.upload_fileobj(
+                file,
+                settings.AWS_STORAGE_BUCKET_NAME,
+                s3_path,
+                ExtraArgs={
+                    'ContentType': file.content_type,
+                    'ACL': 'public-read'
+                }
+            )
+            
+            # Return the S3 URL
+            if hasattr(settings, 'AWS_CLOUDFRONT_DOMAIN') and settings.AWS_CLOUDFRONT_DOMAIN:
+                return f"https://{settings.AWS_CLOUDFRONT_DOMAIN}/{s3_path}"
+            else:
+                return f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{s3_path}"
+                
+        except NoCredentialsError:
+            print("AWS credentials not available")
+            return None
+        except Exception as e:
+            print(f"Error uploading to S3: {str(e)}")
+            return None
 
 class LessonSerializer(serializers.ModelSerializer):
     contents = ContentSerializer(many=True, read_only=True)

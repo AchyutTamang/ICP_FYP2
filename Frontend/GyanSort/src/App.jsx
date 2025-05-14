@@ -23,7 +23,8 @@ import ForumChat from "./components/Forum/ForumChat";
 import Profile from "./components/Profile/Profile";
 import AllCourses from "./pages/AllCourses";
 import { AuthProvider } from "./context/AuthContext";
-
+import ForgotPassword from "./components/auth/ForgotPassword";
+import ResetPassword from "./components/auth/ResetPassword";
 
 // Debug component to help diagnose routing issues
 const RouteDebugger = () => {
@@ -201,11 +202,13 @@ function App() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/profile/:userId" element={<Profile />} />
 
-          
-            {/* ... existing routes ... */}
-            <Route path="/allcourses" element={<AllCourses />} />
-          
+          {/* ... existing routes ... */}
+          <Route path="/allcourses" element={<AllCourses />} />
 
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+
+         
+          <Route path="/reset-password/:userType/:uidb64/:token" element={<ResetPassword />} />
         </Routes>
       </CartProvider>
     </>

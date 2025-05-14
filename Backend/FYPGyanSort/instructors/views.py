@@ -14,6 +14,9 @@ from .serializers import InstructorRegistrationSerializer, InstructorLoginSerial
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
 
 class RegisterView(APIView):
     permission_classes = [AllowAny] 
@@ -470,3 +473,114 @@ class UpdateVerificationStatus(APIView):
                 {"error": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class ForgotPasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email')
+        try:
+            user = Instructor.objects.get(email=email)
+            token = default_token_generator.make_token(user)
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            
+            # Update the reset URL to use the frontend URL and correct path structure
+            reset_url = f"http://localhost:5173/reset-password/instructor/{uid}/{token}"
+            
+            html_content = f"""
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                    .container {{ padding: 20px; }}
+                    h1 {{ color: #00AA44; }}
+                    .button {{ background-color: #00FF40; color: #000; padding: 12px 24px; 
+                             text-decoration: none; border-radius: 50px; font-weight: bold; }}
+                    .button:hover {{ background-color: #00DD30; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>Reset Your Instructor Password</h1>
+                    <p>Hello {user.fullname},</p>
+                    <p>We received a request to reset your instructor account password.</p>
+                    <p><a href="{reset_url}" class="button">Reset Password</a></p>
+                    <p>If you didn't request this, please ignore this email.</p>
+                    <p>This link will expire in 24 hours.</p>
+                    <div class="footer">
+                        <p>Best regards,<br>The GyanSort Team</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            text_content = f"""
+            Reset Your Instructor Password
+            Hello {user.fullname},
+            We received a request to reset your instructor account password.
+            Click the link below to reset your password:
+            {reset_url}
+            If you didn't request this, please ignore this email.
+            This link will expire in 24 hours.
+            Best regards,
+            The GyanSort Team
+            """
+            
+            email = EmailMultiAlternatives(
+                'Reset Your Instructor Password - GyanSort',
+                text_content,
+                settings.EMAIL_HOST_USER,
+                [user.email]
+            )
+            email.attach_alternative(html_content, "text/html")
+            email.send()
+            
+            return Response({
+                'message': 'Password reset link sent to your email'
+            }, status=status.HTTP_200_OK)
+            
+        except Instructor.DoesNotExist:
+            return Response({
+                'error': 'No instructor account found with this email'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+class ResetPasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, uidb64, token):
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = Instructor.objects.get(pk=uid)
+            
+            if default_token_generator.check_token(user, token):
+                new_password = request.data.get('password')
+                if not new_password:
+                    return Response({
+                        'error': 'Password is required'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Add check for password reuse
+                if user.check_password(new_password):
+                    return Response({
+                        'error': 'New password must be different from the current password',
+                        'success': False
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                user.set_password(new_password)
+                user.save()
+                
+                return Response({
+                    'message': 'Password reset successful',
+                    'success': True
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': 'Invalid or expired reset link'
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+        except (TypeError, ValueError, OverflowError, Instructor.DoesNotExist):
+            return Response({
+                'error': 'Invalid reset link'
+            }, status=status.HTTP_400_BAD_REQUEST)

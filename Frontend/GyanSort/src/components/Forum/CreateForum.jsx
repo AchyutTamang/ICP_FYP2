@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { useNavigate,Link } from "react-router-dom";
-import forumService from "../../services/forumService";
+import { useNavigate, Link } from "react-router-dom";
+import forumService from "../../services/forumservice"; // Fixed import path (lowercase)
 import Navbar from "../stick/Navbar";
 
 const CreateForum = () => {
@@ -23,17 +23,30 @@ const CreateForum = () => {
     setError("");
     
     try {
-      await forumService.createForum({
-        title,
-        topic,
-        description,
+      const forumData = {
+        title: title.trim(),
+        topic: topic.trim(),
+        description: description.trim(),
         is_active: true
-      });
+      };
       
+      console.log('Submitting forum data:', forumData);
+      
+      const response = await forumService.createForum(forumData);
+      console.log('Forum created successfully:', response);
       navigate("/forum");
     } catch (error) {
       console.error("Error creating forum:", error);
-      setError(error.response?.data?.detail || "Failed to create forum. Please try again.");
+      // More detailed error handling
+      if (error.response) {
+        console.error("Server response:", error.response.data);
+        setError(error.response.data.detail || "Server error. Please try again.");
+      } else if (error.request) {
+        console.error("No response received");
+        setError("No response from server. Please check your connection.");
+      } else {
+        setError(error.message || "Failed to create forum. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -48,7 +61,7 @@ const CreateForum = () => {
       <Navbar />
 
       <div className="container mx-auto px-4 py-8 max-w-2xl mt-50">
-        <div className="bg-gray-700 bg-opacity-50 rounded-lg p-8">
+        <div className="bg-gray-700 bg-opacity-50 rounded-lg p-8 mt-52">
           <div className="flex items-center mb-6">
             <Link to="/forum" className="text-green-400 mr-2">
               ←

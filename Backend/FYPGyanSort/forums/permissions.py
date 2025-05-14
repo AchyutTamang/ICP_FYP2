@@ -11,59 +11,24 @@ class IsVerifiedInstructor(permissions.BasePermission):
     Custom permission to only allow verified instructors to create forums.
     """
     def has_permission(self, request, view):
-        print(f"IsVerifiedInstructor check for user: {request.user.email}")
-        print(f"Request method: {request.method}")
-        
-        # For OPTIONS requests, always return True to allow CORS preflight
-        if request.method == 'OPTIONS':
-            print("OPTIONS request - allowing for CORS preflight")
+        # For safe methods like GET, allow access
+        if request.method in permissions.SAFE_METHODS:
             return True
+            
+        # For unsafe methods, check if user is a verified instructor
+        user = request.user
         
-        # Check JWT token directly
-        auth_header = request.headers.get('Authorization', '')
-        if auth_header.startswith('Bearer '):
-            token = auth_header.split(' ')[1]
-            try:
-                import jwt
-                from django.conf import settings
-                decoded = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
-                print(f"Token decoded: {decoded}")
-                
-                # If token indicates this is an instructor
-                if decoded.get('user_type') == 'instructor':
-                    email = decoded.get('email')
-                    print(f"Token is for instructor: {email}")
-                    
-                    from instructors.models import Instructor
-                    try:
-                        instructor = Instructor.objects.get(email=email)
-                        print(f"Found instructor by token email: {instructor}")
-                        # Temporarily attach the instructor to the user
-                        setattr(request.user, 'instructor', instructor)
-                        return instructor.email_verified
-                    except Instructor.DoesNotExist:
-                        print(f"No instructor found with email from token: {email}")
-            except Exception as e:
-                print(f"Error decoding token: {e}")
-        
-        # Continue with existing checks
-        if hasattr(request.user, 'instructor'):
-            print(f"User has instructor attribute: {request.user.instructor}")
-            return request.user.instructor.email_verified
-        
-        # Try to find instructor by user email
+        # Check if user has instructor attribute
+        if hasattr(user, 'instructor'):
+            return user.instructor.verification_status == 'verified'
+            
+        # Try to find instructor by email
         from instructors.models import Instructor
         try:
-            instructor = Instructor.objects.get(email=request.user.email)
-            print(f"Found instructor by user email: {instructor}")
-            # Temporarily attach the instructor to the user
-            setattr(request.user, 'instructor', instructor)
-            return instructor.email_verified
+            instructor = Instructor.objects.get(email=user.email)
+            return instructor.verification_status == 'verified'
         except Instructor.DoesNotExist:
-            print(f"No instructor found with email: {request.user.email}")
-            
-        print("Permission denied - user is not a verified instructor")
-        return False
+            return False
 
 class IsVerifiedStudent(permissions.BasePermission):
     """

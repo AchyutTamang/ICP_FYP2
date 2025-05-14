@@ -54,17 +54,9 @@ INSTALLED_APPS += EXTERNAL_APPS  # Now INSTALLED_APPS contains both internal and
 AUTH_USER_MODEL = "students.Student"
 
  
-# REST_FRAMEWORK = {
-#     "DEFAULT_AUTHENTICATION_CLASSES": (
-#         "rest_framework_simplejwt.authentication.JWTAuthentication",
-#     ),
-#     # "DEFAULT_PERMISSION_CLASSES": (
-#     #     "rest_framework.permissions.IsAuthenticated",
-#     # ),
-# }
-
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'FYPGyanSort.authentication.CustomJWTAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
 }
@@ -87,8 +79,34 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True  # For development only
+
+# CORS settings
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'x-user-email',
+    'x-user-role',
+]
+
+# Frontend URL for redirects
+FRONTEND_URL = 'http://localhost:5173' 
 
 ROOT_URLCONF = 'FYPGyanSort.urls'
 
@@ -201,9 +219,6 @@ SIMPLE_JWT = {
     'TOKEN_TYPE_CLAIM': 'token_type',
 }
 
- 
-
-
 
 # File Upload Settings
 DATA_UPLOAD_MAX_MEMORY_SIZE = 314572800  # 300MB in bytes
@@ -239,8 +254,14 @@ DEFAULT_FILE_STORAGE = 'storages.backends.S3boto3Storage'
 
 # AWS Settings
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
-AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
-AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME', 'us-east-1')
-CLOUDFRONT_DOMAIN = os.getenv('CLOUDFRONT_DOMAIN')
-AWS_S3_CUSTOM_DOMAIN = f'{CLOUDFRONT_DOMAIN}'
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_KEY')
+AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_BUCKET_NAME')
+AWS_S3_REGION_NAME = os.getenv('AWS_REGION')
+# CLOUDFRONT_DOMAIN = os.getenv('CLOUDFRONT_DOMAIN')
+# AWS_S3_CUSTOM_DOMAIN = f'{CLOUDFRONT_DOMAIN}'
+
+
+# Khalti Payment Settings
+KHALTI_SECRET_KEY = os.getenv('KHALTI_SECRET_KEY')
+KHALTI_PUBLIC_KEY = os.getenv('KHALTI_PUBLIC_KEY') 
+KHALTI_API_URL = os.getenv('KHALTI_API_URL')
