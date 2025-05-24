@@ -6,6 +6,7 @@ import {
   useNavigate,
   useLocation,
 } from "react-router-dom";
+import axios from "axios"; // Add this import
 import Home from "./pages/home";
 import StudentHome from "./pages/StudentHome";
 import InstructorHome from "./pages/InstructorHome";
@@ -25,6 +26,11 @@ import AllCourses from "./pages/AllCourses";
 import { AuthProvider } from "./context/AuthContext";
 import ForgotPassword from "./components/auth/ForgotPassword";
 import ResetPassword from "./components/auth/ResetPassword";
+import CreateCourse from "./pages/instructor/CreateCourse";
+import InstructorCourses from "./pages/instructor/InstructorCourses";
+import CreateModules from "./pages/instructor/CreateModules";
+import CreateLessons from "./pages/instructor/CreateLessons";
+import InstructorDashboard from "./pages/instructor/InstructorDashboard";
 
 // Debug component to help diagnose routing issues
 const RouteDebugger = () => {
@@ -43,15 +49,23 @@ const RouteDebugger = () => {
 const ProtectedRoute = ({ children, requiredRole }) => {
   const { isAuthenticated, userRole, loading } = useAuth();
   const location = useLocation();
-
+  
   useEffect(() => {
+    // Check if token exists in localStorage
+    const token = localStorage.getItem('access_token');
     console.log("ProtectedRoute check:", {
       path: location.pathname,
       isAuthenticated,
       userRole,
       requiredRole,
       loading,
+      hasToken: !!token
     });
+    
+    // Set token in axios headers if it exists
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    }
   }, [location, isAuthenticated, userRole, requiredRole, loading]);
 
   if (loading) {
@@ -97,6 +111,13 @@ const HomeRoute = () => {
   return <Home />;
 };
 
+// Add this import at the top with your other imports
+// import EmailVerification from "./pages/EmailVerification";
+
+
+// Add this route to your Routes component
+{/* <Route path="/verify-email" element={<EmailVerification />} />; */}
+
 function App() {
   return (
     <>
@@ -119,6 +140,7 @@ function App() {
                 <InstructorHome />
               </ProtectedRoute>
             }
+            
           />
           <Route
             path="/studenthome"
@@ -153,6 +175,8 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/instructor/courses/:courseId/modules" element={<CreateModules />} />
+          <Route path="/instructor/courses/:courseId/modules/:moduleId/lessons" element={<CreateLessons />} />
           <Route
             path="/payment/:orderId"
             element={
@@ -190,7 +214,29 @@ function App() {
               </ProtectedRoute>
             }
           />
-
+          
+          {/* Instructor routes */}
+          <Route 
+            path="/instructor/create-course" 
+            element={
+              <ProtectedRoute requiredRole="instructor">
+                <CreateCourse />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route
+            path="/instructor/courses"
+            element={
+              <ProtectedRoute requiredRole="instructor">
+                <InstructorCourses />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/instructor/dashboard"
+            element={<InstructorDashboard />}
+          />
           <Route
             path="/forums/:forumId/chat"
             element={
@@ -207,8 +253,10 @@ function App() {
 
           <Route path="/forgot-password" element={<ForgotPassword />} />
 
-         
-          <Route path="/reset-password/:userType/:uidb64/:token" element={<ResetPassword />} />
+          <Route
+            path="/reset-password/:userType/:uidb64/:token"
+            element={<ResetPassword />}
+          />
         </Routes>
       </CartProvider>
     </>

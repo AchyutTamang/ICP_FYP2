@@ -156,7 +156,7 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  // Replace the existing login function with this updated version
+  // KEEP ONLY THIS LOGIN FUNCTION - remove the duplicate ones at the bottom of the file
   const login = (userData, role, token, refreshToken) => {
     console.log("Login data:", userData, role);
 
@@ -201,6 +201,9 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem("user_info", JSON.stringify(userWithFullName));
     localStorage.setItem("user_email", userWithFullName.email); // Store email in localStorage
 
+    // Set the token in axios headers
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
     setIsAuthenticated(true);
     setUserRole(role);
     setUser(userWithFullName);
@@ -211,13 +214,25 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem("refresh_token");
     localStorage.removeItem("user_role");
     localStorage.removeItem("user_info");
+    
+    // Remove the token from axios headers
+    delete axios.defaults.headers.common['Authorization'];
 
     setIsAuthenticated(false);
     setUserRole(null);
     setUser(null);
   };
 
-  
+  // Add the refreshToken function
+  const refreshToken = () => {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      // Set the token in the axios default headers
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      return true;
+    }
+    return false;
+  };
 
   const refreshAuthState = async () => {
     const token = localStorage.getItem("access_token");
@@ -318,6 +333,7 @@ export const AuthProvider = ({ children }) => {
         login,
         logout,
         refreshAuthState,
+        refreshToken
       }}
     >
       {children}

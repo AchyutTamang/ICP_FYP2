@@ -4,9 +4,11 @@ import profileService from '../../services/profileService';
 import Navbar from '../stick/Navbar';
 import { toast } from 'react-toastify';
 import { FaEdit, FaTrash } from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
 
 const Profile = () => {
   const { user, userRole } = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [courses, setCourses] = useState([]);
   const [forums, setForums] = useState([]);
@@ -114,17 +116,21 @@ const Profile = () => {
   };
 
   // Add new function for course/forum creation
-  const handleCreate = async (type) => {
-    try {
-      if (type === 'course') {
-        // Navigate to course creation page
-        window.location.href = '/create-course';
-      } else {
-        // Navigate to forum creation page
-        window.location.href = '/create-forum';
-      }
-    } catch (error) {
-      toast.error(`Error creating ${type}`);
+  // Update the handleCreate function to include the token in localStorage
+  const handleCreate = (type) => {
+    console.log(`Attempting to navigate to ${type} creation page`);
+    console.log('Current user role:', userRole);
+    
+    // Make sure the token is available in localStorage before navigation
+    const token = localStorage.getItem('access_token');
+    console.log('Token available:', !!token);
+    
+    if (type === 'course') {
+      console.log('Navigating to /instructor/create-course');
+      // Navigate to create course page
+      navigate('/instructor/create-course');
+    } else {
+      navigate('/forum/create');
     }
   };
 
