@@ -29,8 +29,9 @@ import ResetPassword from "./components/auth/ResetPassword";
 import CreateCourse from "./pages/instructor/CreateCourse";
 import InstructorCourses from "./pages/instructor/InstructorCourses";
 import CreateModules from "./pages/instructor/CreateModules";
-import CreateLessons from "./pages/instructor/CreateLessons";
+
 import InstructorDashboard from "./pages/instructor/InstructorDashboard";
+import CategoryManagement from "./pages/instructor/CategoryManagement";
 
 // Debug component to help diagnose routing issues
 const RouteDebugger = () => {
@@ -140,7 +141,6 @@ function App() {
                 <InstructorHome />
               </ProtectedRoute>
             }
-            
           />
           <Route
             path="/studenthome"
@@ -175,8 +175,11 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="/instructor/courses/:courseId/modules" element={<CreateModules />} />
-          <Route path="/instructor/courses/:courseId/modules/:moduleId/lessons" element={<CreateLessons />} />
+          <Route
+            path="/instructor/courses/:courseId/modules"
+            element={<CreateModules />}
+          />
+         
           <Route
             path="/payment/:orderId"
             element={
@@ -214,17 +217,25 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
+          <Route
+            path="/instructor/create-modules"
+            element={
+              <ProtectedRoute requiredRole="instructor">
+                <CreateModules />
+              </ProtectedRoute>
+            }
+          />
+
           {/* Instructor routes */}
-          <Route 
-            path="/instructor/create-course" 
+          <Route
+            path="/instructor/create-course"
             element={
               <ProtectedRoute requiredRole="instructor">
                 <CreateCourse />
               </ProtectedRoute>
-            } 
+            }
           />
-          
+
           <Route
             path="/instructor/courses"
             element={
@@ -247,8 +258,10 @@ function App() {
           />
           <Route path="/profile" element={<Profile />} />
           <Route path="/profile/:userId" element={<Profile />} />
-
-          {/* ... existing routes ... */}
+          <Route
+            path="/instructor/category-management"
+            element={<CategoryManagement />}
+          />
           <Route path="/allcourses" element={<AllCourses />} />
 
           <Route path="/forgot-password" element={<ForgotPassword />} />

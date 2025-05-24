@@ -14,12 +14,70 @@ def validate_file_size(value):
 
 # Category
 class Category(models.Model):
-    name = models.CharField(max_length=100, unique=True)
+    CATEGORY_CHOICES = [
+        ('web_dev', 'Web Development'),
+        ('graphic_design', 'Graphic Design'),
+        ('data_science', 'Data Science & Analytics'),
+        ('digital_marketing', 'Digital Marketing'),
+        ('personal_finance', 'Personal Finance'),
+        ('entrepreneurship', 'Entrepreneurship & Startups'),
+        ('photography', 'Photography & Videography'),
+        ('fitness', 'Fitness & Wellness'),
+        ('language', 'Language Learning'),
+        ('mobile_dev', 'Mobile App Development'),
+        ('music', 'Music & Audio Production'),
+        ('ui_ux', 'UI/UX Design'),
+        ('software_tools', 'Software & Tools'),
+        ('teaching', 'Teaching & Academics'),
+        ('project_management', 'Project Management & Leadership'),
+    ]
+
+    name = models.CharField(max_length=100, choices=CATEGORY_CHOICES)
     description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         verbose_name_plural = "Categories"
+
+    def __str__(self):
+        return dict(self.CATEGORY_CHOICES)[self.name]
+
+    @classmethod
+    def get_default_description(cls, category_name):
+        descriptions = {
+            'web_dev': 'Learn to build websites using HTML, CSS, JavaScript, Django, React, etc.',
+            'graphic_design': 'Courses on Photoshop, Illustrator, Canva, logo design, etc.',
+            'data_science': 'Python, R, machine learning, statistics, data visualization.',
+            'digital_marketing': 'SEO, social media marketing, Google Ads, email marketing.',
+            'personal_finance': 'Budgeting, investing, savings, cryptocurrencies.',
+            'entrepreneurship': 'Business planning, pitching, MVPs, startup growth.',
+            'photography': 'DSLR skills, mobile photography, editing in Premiere Pro.',
+            'fitness': 'Home workouts, yoga, nutrition, mindfulness, meditation.',
+            'language': 'English, Spanish, French, Nepali, and other language courses.',
+            'mobile_dev': 'Android, iOS, Flutter, React Native, mobile UI/UX.',
+            'music': 'Guitar, piano, FL Studio, singing, mixing/mastering.',
+            'ui_ux': 'Wireframing, Figma, Adobe XD, design principles.',
+            'software_tools': 'Excel, Word, PowerPoint, Google Workspace, productivity tools.',
+            'teaching': 'Math, science, humanities, exam prep, online teaching.',
+            'project_management': 'Agile, Scrum, team management, communication.',
+        }
+        return descriptions.get(category_name, '')
+        
+    class Meta:
+        verbose_name_plural = "Categories"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['name'],
+                name='unique_category_name_case_insensitive',
+                condition=models.Q(),
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        # Normalize the name to lowercase before saving
+        if self.name:
+            self.name = self.name.strip()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name

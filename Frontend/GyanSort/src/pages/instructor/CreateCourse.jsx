@@ -16,12 +16,11 @@ const CreateCourse = () => {
     title: "",
     description: "",
     price: "",
-    category: "",
     thumbnail: null,
     preview_video: null,
   });
 
-  // Get token on component mount - KEEP ONLY THIS ONE useEffect for token checking
+  // Get token and user info on component mount
   useEffect(() => {
     const storedToken = localStorage.getItem('access_token');
     setToken(storedToken);
@@ -34,8 +33,132 @@ const CreateCourse = () => {
       console.log("Token available:", !!storedToken);
       // Set the token in axios headers
       axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+      
+      // Get current user info
+      fetchUserInfo(storedToken);
     }
   }, [navigate]);
+  
+  // Function to fetch user info
+  const fetchUserInfo = async (token) => {
+    try {
+      // Try the current-user endpoint
+      let response;
+      try {
+        response = await axios.get('http://localhost:8000/api/users/current-user/', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+      } catch (error) {
+        // If that fails, try the me endpoint which is more common
+        console.log("Trying alternative endpoint for user info");
+        response = await axios.get('http://localhost:8000/api/users/me/', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+      }
+      
+      // Store user info in localStorage
+      localStorage.setItem('user_info', JSON.stringify(response.data));
+      console.log('User info stored:', response.data);
+      
+      // Store user ID separately for easier access
+      if (response.data.id) {
+        localStorage.setItem('user_id', response.data.id);
+      } else if (response.data.user_id) {
+        localStorage.setItem('user_id', response.data.user_id);
+      }
+    } catch (error) {
+      console.error("Error fetching user info:", error);
+      
+      // Extract user ID from token as fallback
+      try {
+        const tokenData = JSON.parse(atob(token.split('.')[1]));
+        if (tokenData.user_id) {
+          console.log("Extracted user ID from token:", tokenData.user_id);
+          localStorage.setItem('user_id', tokenData.user_id);
+        }
+      } catch (e) {
+        console.error("Could not extract user info from token:", e);
+      }
+      
+      toast.warning("Could not retrieve your account information. Some features may be limited.");
+    }
+  };
+
+  // Handle form submission
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    console.log("Form submitted with data:", courseData);
+    
+    // Validate course data
+    if (!courseData.title || !courseData.description || !courseData.thumbnail) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Get user info from localStorage
+      const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
+      if (!userInfo.id) {
+        toast.error('User information not found. Please log in again.');
+        return;
+      }
+      
+      // Store the course data temporarily
+      setTempCourseData(courseData);
+      
+      // Store the course info in localStorage
+      const courseInfo = {
+        title: courseData.title,
+        description: courseData.description,
+        course_price: courseData.price || 0,
+        is_free: courseData.price === "0" || courseData.price === "" || parseFloat(courseData.price) === 0,
+        instructor: userInfo.id // Add instructor ID
+      };
+      
+      localStorage.setItem('course_info', JSON.stringify(courseInfo));
+      
+      // Store the actual files in FormData objects
+      if (courseData.thumbnail) {
+        // Convert file to base64 for storage
+        const reader = new FileReader();
+        reader.readAsDataURL(courseData.thumbnail);
+        reader.onload = () => {
+          localStorage.setItem('course_thumbnail', reader.result);
+        };
+        localStorage.setItem('course_thumbnail_name', courseData.thumbnail.name);
+      }
+      
+      if (courseData.preview_video) {
+        // For preview video, just store the name as the file might be too large for localStorage
+        localStorage.setItem('course_preview_video_name', courseData.preview_video.name);
+        
+        // Store a reference that we have a video file
+        localStorage.setItem('has_preview_video', 'true');
+      }
+      
+      // Redirect to category management page with course data
+      navigate('/instructor/category-management', { 
+        state: { 
+          fromCourseCreation: true,
+          courseInfo: courseInfo,
+          hasThumbnail: !!courseData.thumbnail,
+          hasPreviewVideo: !!courseData.preview_video,
+          instructorId: userInfo.id
+        } 
+      });
+    } catch (error) {
+      console.error("Error preparing course data:", error);
+      toast.error("Error preparing course data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Handle course data changes
   const handleCourseChange = (e) => {
@@ -54,98 +177,11 @@ const CreateCourse = () => {
     });
   };
 
-  // Handle form submission
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    console.log("Form submitted");
-    
-    // Validate course data
-    if (!courseData.title || !courseData.description || !courseData.category || !courseData.thumbnail) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-    
-    // Get the token again to ensure it's the latest
-    const currentToken = localStorage.getItem('access_token');
-    
-    // Check if token exists
-    if (!currentToken) {
-      toast.error('Authentication token not found. Please log in again.');
-      navigate('/');
-      return;
-    }
-    
-    // Create the course
-    setLoading(true);
-    try {
-      console.log("Creating course...", courseData);
-      const data = new FormData();
-      data.append('title', courseData.title);
-      data.append('description', courseData.description);
-      data.append('price', courseData.price || 0);
-      data.append('category', courseData.category);
-      data.append('is_free', courseData.price === '0' || courseData.price === '' ? 'true' : 'false');
-      
-      if (courseData.thumbnail) {
-        data.append('thumbnail', courseData.thumbnail);
-        console.log("Thumbnail added to form data");
-      }
-      
-      if (courseData.preview_video) {
-        data.append('preview_video', courseData.preview_video);
-        console.log("Preview video added to form data");
-      }
+  // Add state to store form data temporarily
+  const [tempCourseData, setTempCourseData] = useState(null);
 
-      console.log("Sending request to API...");
-      const response = await axios.post(
-        'http://localhost:8000/api/courses/create/',
-        data,
-        {
-          headers: {
-            'Authorization': `Bearer ${currentToken}`,
-            'Content-Type': 'multipart/form-data'
-          }
-        }
-      );
-      
-      console.log("Course created:", response.data);
-      toast.success('Course information saved! Now add modules.');
-      
-      // Navigate to the module creation page with the course ID
-      if (response.data && response.data.id) {
-        navigate(`/instructor/courses/${response.data.id}/modules`);
-      } else {
-        console.error("No course ID in response:", response.data);
-        toast.error("Failed to get course ID from server");
-      }
-    } catch (error) {
-      console.error('Error creating course:', error);
-      if (error.response) {
-        console.error('Response data:', error.response.data);
-        console.error('Response status:', error.response.status);
-        toast.error(`Error: ${error.response.data.error || error.response.statusText}`);
-      } else if (error.request) {
-        console.error('No response received:', error.request);
-        toast.error('No response from server. Check your connection.');
-      } else {
-        toast.error(`Error: ${error.message}`);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // REMOVE THIS SECOND useEffect - it's causing the issue
-  // useEffect(() => {
-  //   if (!token) {
-  //     console.error("No authentication token found");
-  //     toast.error("You need to be logged in to create a course");
-  //     navigate("/");
-  //   } else {
-  //     console.log("Token available:", token ? "Yes" : "No");
-  //   }
-  // }, [token, navigate]);
-
+  // Remove the entire duplicate handleSubmit function (lines ~158-219)
+  
   return (
     <InstructorPanel>
       <div className="container mx-auto px-4 py-8">
@@ -180,37 +216,22 @@ const CreateCourse = () => {
             ></textarea>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-white mb-2">Price ($)*</label>
-              <input
-                type="number"
-                name="price"
-                value={courseData.price}
-                onChange={handleCourseChange}
-                className="w-full px-3 py-2 bg-gray-700 text-white rounded"
-                placeholder="0.00"
-                min="0"
-                step="0.01"
-                required
-              />
-              <p className="text-gray-400 text-sm mt-1">
-                Set to 0 for a free course
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-white mb-2">Category*</label>
-              <input
-                type="text"
-                name="category"
-                value={courseData.category}
-                onChange={handleCourseChange}
-                className="w-full px-3 py-2 bg-gray-700 text-white rounded"
-                placeholder="e.g., Programming, Design, Business"
-                required
-              />
-            </div>
+          <div className="mb-4">
+            <label className="block text-white mb-2">Price</label>
+            <input
+              type="number"
+              name="price"
+              value={courseData.price}
+              onChange={handleCourseChange}
+              className="w-full px-3 py-2 bg-gray-700 text-white rounded"
+              placeholder="0.00"
+              min="0"
+              step="0.01"
+              required
+            />
+            <p className="text-gray-400 text-sm mt-1">
+              Set to 0 for a free course
+            </p>
           </div>
 
           <div className="mb-4">
@@ -230,7 +251,7 @@ const CreateCourse = () => {
 
           <div className="mb-6">
             <label className="block text-white mb-2">
-              Preview Video (Optional)
+              Demo Video of Course
             </label>
             <input
               type="file"
@@ -245,29 +266,19 @@ const CreateCourse = () => {
           </div>
 
           <div className="flex justify-end">
-            <div className="flex justify-between">
-              <button
-                type="button"
-                onClick={() => console.log("Test button clicked")}
-                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded"
-              >
-                Test Console
-              </button>
-              
-              <button
-                type="submit"
-                className="bg-green-500 hover:bg-green-600 text-black font-bold px-6 py-2 rounded flex items-center"
-                disabled={loading}
-              >
-                {loading ? "Creating..." : "Next"}
-                {!loading && <span className="ml-2">→</span>}
-              </button>
-            </div>
+            <button
+              type="submit"
+              className="bg-green-500 hover:bg-green-600 text-black font-bold px-6 py-2 rounded flex items-center"
+              disabled={loading}
+            >
+              {loading ? "Creating..." : "Next"}
+              {!loading && <span className="ml-2">→</span>}
+            </button>
           </div>
         </form>
       </div>
     </InstructorPanel>
-  );
-};
+  )
+}
 
 export default CreateCourse;

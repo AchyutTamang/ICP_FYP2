@@ -8,9 +8,38 @@ import uuid
 
 
 class CategorySerializer(serializers.ModelSerializer):
+    name = serializers.CharField(required=True, max_length=100)
+    description = serializers.CharField(required=False, allow_blank=True)
+
     class Meta:
         model = Category
-        fields = '__all__'
+        fields = ['id', 'name', 'description', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+    def create(self, validated_data):
+        name = validated_data.get('name', '').strip()
+        description = validated_data.get('description', '').strip()
+        
+        # Check if category with this name already exists
+        if Category.objects.filter(name__iexact=name).exists():
+            raise serializers.ValidationError({'name': 'A category with this name already exists'})
+            
+        return Category.objects.create(
+            name=name,
+            description=description
+        )
+
+    def validate_name(self, value):
+        # Ensure name is not empty and has valid length
+        if not value.strip():
+            raise serializers.ValidationError("Category name cannot be empty")
+        if len(value) > 100:
+            raise serializers.ValidationError("Category name cannot exceed 100 characters")
+        return value.strip()
+
+    def validate_description(self, value):
+        # Ensure description is not None
+        return value or ""
 
 class ReviewSerializer(serializers.ModelSerializer):
     class Meta:
