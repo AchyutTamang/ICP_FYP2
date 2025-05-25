@@ -39,10 +39,10 @@ const ForumChat = () => {
             
             setIsForumMember(isMember);
             
-            // If not a member, don't load messages
-            if (!isMember) {
-              setLoading(false);
-              return;
+            // If member, load messages immediately
+            if (isMember) {
+              const messagesResponse = await forumService.getMessages(forumId);
+              setMessages(messagesResponse.data);
             }
           } catch (error) {
             console.error("Error checking forum membership:", error);
@@ -53,15 +53,11 @@ const ForumChat = () => {
                            forumResponse.data.created_by_email === user?.email;
           setIsForumMember(isCreator);
           
-          if (!isCreator) {
-            setLoading(false);
-            return;
+          if (isCreator) {
+            const messagesResponse = await forumService.getMessages(forumId);
+            setMessages(messagesResponse.data);
           }
         }
-
-        // Load messages only if user has access
-        const messagesResponse = await forumService.getMessages(forumId);
-        setMessages(messagesResponse.data);
 
         setLoading(false);
       } catch (error) {
@@ -83,7 +79,7 @@ const ForumChat = () => {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [forumId, user, userRole, isForumMember]);
+  }, [forumId, user, userRole]);
 
   useEffect(() => {
     // Scroll to bottom when messages change
@@ -112,7 +108,7 @@ const ForumChat = () => {
   // Enhanced join forum handler
   const handleJoinForum = async () => {
     try {
-      await forumService.joinForum(forumId);
+      const result = await forumService.joinForum(forumId);
       
       // Show success message
       setJoinSuccess(true);
@@ -131,6 +127,7 @@ const ForumChat = () => {
       }, 3000);
     } catch (error) {
       console.error("Error joining forum:", error);
+      // You might want to show an error message to the user here
     }
   };
   
@@ -146,10 +143,10 @@ const ForumChat = () => {
       // Update forum membership status
       setIsForumMember(false);
       
-      // After 3 seconds, hide the success message
+      // After 2 seconds, redirect to forums page
       setTimeout(() => {
-        setLeaveSuccess(false);
-      }, 3000);
+        navigate('/forum');
+      }, 2000);
     } catch (error) {
       console.error("Error leaving forum:", error);
     }
@@ -175,8 +172,8 @@ const ForumChat = () => {
     );
   }
 
-  // Show join prompt for students who haven't joined
-  if (userRole === 'student' && !isForumMember) {
+  // Show join prompt for students who haven't joined and aren't already members
+  if (userRole === 'student' && !isForumMember && !loading) {
     return (
       <>
         <Navbar />
@@ -187,24 +184,13 @@ const ForumChat = () => {
             </Link>
           </div>
           
-          <div className="bg-gray-700 bg-opacity-50 rounded-lg shadow-md p-8 text-center">
+          <div className="bg-gray-800 rounded-lg shadow-md p-8 text-center">
             <h2 className="text-xl font-bold text-white mb-4">{forum.title}</h2>
             <p className="text-gray-300 mb-6">{forum.description}</p>
-            
-            {joinSuccess && (
-              <div className="bg-green-500 bg-opacity-20 border border-green-500 text-green-400 px-4 py-3 rounded mb-6">
-                Successfully joined {forum.title}! Loading forum content...
-              </div>
-            )}
-            
-            {!joinSuccess && (
-              <p className="text-yellow-400 mb-6">Join first to access the chat.</p>
-            )}
             
             <button 
               onClick={handleJoinForum}
               className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg"
-              disabled={joinSuccess}
             >
               Join Forum
             </button>

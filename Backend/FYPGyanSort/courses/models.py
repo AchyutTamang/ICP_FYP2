@@ -38,9 +38,16 @@ class Category(models.Model):
 
     class Meta:
         verbose_name_plural = "Categories"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['name'],
+                name='unique_category_name_case_insensitive',
+                condition=models.Q(),
+            )
+        ]
 
     def __str__(self):
-        return dict(self.CATEGORY_CHOICES)[self.name]
+        return dict(self.CATEGORY_CHOICES).get(self.name, self.name)
 
     @classmethod
     def get_default_description(cls, category_name):
@@ -63,16 +70,6 @@ class Category(models.Model):
         }
         return descriptions.get(category_name, '')
         
-    class Meta:
-        verbose_name_plural = "Categories"
-        constraints = [
-            models.UniqueConstraint(
-                fields=['name'],
-                name='unique_category_name_case_insensitive',
-                condition=models.Q(),
-            )
-        ]
-
     def save(self, *args, **kwargs):
         # Normalize the name to lowercase before saving
         if self.name:
@@ -94,7 +91,6 @@ class Review(models.Model):
 
     def __str__(self):
         return f"Rating: {self.rating}"
-
 
 # Course
 class Course(models.Model):
@@ -121,16 +117,15 @@ class Course(models.Model):
         help_text='Maximum file size: 10MB. Allowed formats: JPG, JPEG, PNG'
     )
     demo_video = models.FileField(
-    upload_to='course_demos/',
-    null=True,
-    blank=True,
-    validators=[
-        FileExtensionValidator(['mp4', 'webm']),
-        validate_file_size
-    ],
-    help_text='Maximum file size: 300MB. Allowed formats: MP4, WEBM'
-)
-
+        upload_to='course_demos/',
+        null=True,
+        blank=True,
+        validators=[
+            FileExtensionValidator(['mp4', 'webm']),
+            validate_file_size
+        ],
+        help_text='Maximum file size: 300MB. Allowed formats: MP4, WEBM'
+    )
     
     reviews = models.ManyToManyField(Review, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -148,8 +143,8 @@ class Course(models.Model):
 
     class Meta:
         ordering = ['-created_at']
-        
-#module
+
+# Module
 class Module(models.Model):
     course = models.ForeignKey(Course, related_name='modules', on_delete=models.CASCADE)
     title = models.CharField(max_length=200)
@@ -164,6 +159,7 @@ class Module(models.Model):
     def __str__(self):
         return f"{self.course.title} - {self.title}"
 
+# Lesson
 class Lesson(models.Model):
     module = models.ForeignKey(Module, related_name='lessons', on_delete=models.CASCADE)
     title = models.CharField(max_length=200)
@@ -179,6 +175,7 @@ class Lesson(models.Model):
     def __str__(self):
         return self.title
 
+# Content
 class Content(models.Model):
     CONTENT_TYPES = (
         ('video', 'Video'),
@@ -200,3 +197,10 @@ class Content(models.Model):
 
     def __str__(self):
         return self.title
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Save the file URL to cloudfront_url if not already set and file exists
+        if self.file and (not self.cloudfront_url or self.cloudfront_url != self.file.url):
+            self.cloudfront_url = self.file.url
+            super().save(update_fields=['cloudfront_url'])
