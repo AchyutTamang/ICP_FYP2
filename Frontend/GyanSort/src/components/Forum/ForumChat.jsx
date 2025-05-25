@@ -1,4 +1,5 @@
 
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import forumService from "../../services/forumService";
 import { useAuth } from "../../context/AuthContext";
@@ -13,6 +14,8 @@ const ForumChat = () => {
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [isForumMember, setIsForumMember] = useState(false);
+  const [joinSuccess, setJoinSuccess] = useState(false);
+  const [leaveSuccess, setLeaveSuccess] = useState(false);
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
 
@@ -30,7 +33,7 @@ const ForumChat = () => {
             
             // Check if current user is in the participants list
             const isMember = participants.some(participant => 
-              participant.student_id === user?.id || 
+              String(participant.student_id) === String(user?.id) || 
               participant.student_email === user?.email
             );
             
@@ -46,7 +49,7 @@ const ForumChat = () => {
           }
         } else if (userRole === 'instructor') {
           // Instructors can access if they created the forum
-          const isCreator = forumResponse.data.created_by === user?.id || 
+          const isCreator = String(forumResponse.data.created_by) === String(user?.id) || 
                            forumResponse.data.created_by_email === user?.email;
           setIsForumMember(isCreator);
           
@@ -106,16 +109,49 @@ const ForumChat = () => {
     }
   };
 
-  // Add a join forum handler
+  // Enhanced join forum handler
   const handleJoinForum = async () => {
     try {
       await forumService.joinForum(forumId);
+      
+      // Show success message
+      setJoinSuccess(true);
+      setLeaveSuccess(false);
+      
+      // Update forum membership status
       setIsForumMember(true);
+      
       // Refresh forum details after joining
       const messagesResponse = await forumService.getMessages(forumId);
       setMessages(messagesResponse.data);
+      
+      // After 3 seconds, hide the success message
+      setTimeout(() => {
+        setJoinSuccess(false);
+      }, 3000);
     } catch (error) {
       console.error("Error joining forum:", error);
+    }
+  };
+  
+  // Add leave forum handler
+  const handleLeaveForum = async () => {
+    try {
+      await forumService.leaveForum(forumId);
+      
+      // Show leave success message
+      setLeaveSuccess(true);
+      setJoinSuccess(false);
+      
+      // Update forum membership status
+      setIsForumMember(false);
+      
+      // After 3 seconds, hide the success message
+      setTimeout(() => {
+        setLeaveSuccess(false);
+      }, 3000);
+    } catch (error) {
+      console.error("Error leaving forum:", error);
     }
   };
 
@@ -154,10 +190,21 @@ const ForumChat = () => {
           <div className="bg-gray-700 bg-opacity-50 rounded-lg shadow-md p-8 text-center">
             <h2 className="text-xl font-bold text-white mb-4">{forum.title}</h2>
             <p className="text-gray-300 mb-6">{forum.description}</p>
-            <p className="text-yellow-400 mb-6">You need to join this forum to view and participate in discussions.</p>
+            
+            {joinSuccess && (
+              <div className="bg-green-500 bg-opacity-20 border border-green-500 text-green-400 px-4 py-3 rounded mb-6">
+                Successfully joined {forum.title}! Loading forum content...
+              </div>
+            )}
+            
+            {!joinSuccess && (
+              <p className="text-yellow-400 mb-6">Join first to access the chat.</p>
+            )}
+            
             <button 
               onClick={handleJoinForum}
               className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg"
+              disabled={joinSuccess}
             >
               Join Forum
             </button>
@@ -172,10 +219,28 @@ const ForumChat = () => {
     <>
       <Navbar />
       <div className="container mx-auto px-4 py-6 max-w-4xl min-h-screen pt-24">
-        <div className="mb-4">
+        <div className="mb-4 flex justify-between items-center">
           <Link to="/forum" className="text-green-400 hover:text-green-500">
             &larr; Back to Forums
           </Link>
+          
+          {/* Leave button for students who have joined */}
+          {userRole === 'student' && isForumMember && (
+            <div>
+              {leaveSuccess ? (
+                <div className="bg-yellow-500 bg-opacity-20 border border-yellow-500 text-yellow-400 px-4 py-2 rounded">
+                  You have left the forum. Redirecting...
+                </div>
+              ) : (
+                <button 
+                  onClick={handleLeaveForum}
+                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
+                >
+                  Leave Forum
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="bg-gray-700 bg-opacity-50 rounded-lg shadow-md overflow-hidden">

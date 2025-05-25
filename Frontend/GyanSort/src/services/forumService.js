@@ -116,13 +116,66 @@ const forumService = {
   },
 
   // Join a forum (students only)
-  joinForum: (forumId) => {
-    return api.post(`/forums/forums/${forumId}/join/`);
+  joinForum: async (forumId) => {
+    try {
+      // Check if user is already a member first
+      const participantsResponse = await api.get(`/forums/forums/${forumId}/participants/`);
+      const participants = participantsResponse.data || [];
+      
+      // Get user ID from localStorage
+      const userId = localStorage.getItem('userId') || 
+                    localStorage.getItem('user_id') || 
+                    localStorage.getItem('id');
+      
+      const userEmail = localStorage.getItem('email');
+      
+      // Check if user is already a member
+      const isAlreadyMember = participants.some(participant => 
+        String(participant.student_id) === String(userId) || 
+        participant.student_email === userEmail
+      );
+      
+      if (isAlreadyMember) {
+        console.log('User is already a member of this forum');
+        return { success: true, message: 'Already a member' };
+      }
+      
+      // If not a member, proceed with joining
+      const response = await api.post(`/forums/forums/${forumId}/join/`, {
+        student_id: userId,
+        student_email: userEmail
+      });
+      
+      console.log('Join forum response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error joining forum:', error.response?.data || error.message);
+      throw error;
+    }
   },
 
   // Leave a forum (students only)
-  leaveForum: (forumId) => {
-    return api.post(`/forums/forums/${forumId}/leave/`);
+  leaveForum: async (forumId) => {
+    try {
+      // Get user ID from localStorage
+      const userId = localStorage.getItem('userId') || 
+                    localStorage.getItem('user_id') || 
+                    localStorage.getItem('id');
+      
+      const userEmail = localStorage.getItem('email');
+      
+      // Send both user ID and email to handle different backend implementations
+      const response = await api.post(`/forums/forums/${forumId}/leave/`, {
+        student_id: userId,
+        student_email: userEmail
+      });
+      
+      console.log('Leave forum response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error leaving forum:', error.response?.data || error.message);
+      throw error;
+    }
   },
 
   // Get messages for a forum
