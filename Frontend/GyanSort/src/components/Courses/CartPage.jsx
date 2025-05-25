@@ -6,6 +6,8 @@ import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import KhaltiCheckout from "khalti-checkout-web";
+
 
 // Make sure the component name matches what you're exporting
 const CartPage = () => {
@@ -74,6 +76,9 @@ const CartPage = () => {
     }
   };
 
+  const khaltiKey = "9cdb33a2b0724d56bdc1be878157f7e0"; 
+  
+  // Update the handleCheckout function
   const handleCheckout = async () => {
     try {
       // Create an order from cart items
@@ -86,11 +91,63 @@ const CartPage = () => {
           },
         }
       );
-
+  
       if (response.status === 201) {
-        // Redirect to payment page with order ID
-        navigate(`/payment/${response.data.order_id}`);
-        toast.success("Order created successfully! Proceeding to payment.");
+        const orderId = response.data.order_id;
+        
+        // Configure Khalti
+        let config = {
+          publicKey: khaltiKey,
+          productIdentity: orderId,
+          productName: "GyanSort Courses",
+          productUrl: "http://localhost:5173",
+          eventHandler: {
+            onSuccess: async (payload) => {
+              // Verify payment on your backend
+              try {
+                const verifyResponse = await axios.post(
+                  "http://localhost:8000/api/payment/verify/",
+                  {
+                    token: payload.token,
+                    amount: payload.amount,
+                    order_id: orderId
+                  },
+                  {
+                    headers: {
+                      Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+                    },
+                  }
+                );
+  
+                if (verifyResponse.data.success) {
+                  navigate(`/payment-status/success?orderId=${orderId}`);
+                } else {
+                  navigate(`/payment-status/failure?orderId=${orderId}`);
+                }
+              } catch (error) {
+                console.error("Payment verification failed:", error);
+                navigate(`/payment-status/failure?orderId=${orderId}`);
+              }
+            },
+            onError: (error) => {
+              console.log(error);
+              navigate(`/payment-status/failure?orderId=${orderId}`);
+            },
+            onClose: () => {
+              console.log('Widget is closing');
+            }
+          },
+          paymentPreference: ["KHALTI"],
+        };
+  
+        // Initialize Khalti checkout
+        let checkout = new KhaltiCheckout(config);
+        
+        // Convert total price to paisa (Khalti uses paisa)
+        const amount = Math.round(totalPrice * 100);
+        
+        // Open Khalti widget
+        checkout.show({ amount });
       }
     } catch (err) {
       console.error("Error during checkout:", err);

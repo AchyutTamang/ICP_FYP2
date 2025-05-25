@@ -4,13 +4,13 @@ import Footer from "../components/Stick/Footer";
 import styled from "@emotion/styled";
 import CourseCard from "../components/Courses/CourseCard";
 import { FaSearch, FaArrowRight, FaArrowLeft } from "react-icons/fa";
-import axios from 'axios';
+import axios from "axios";
 import { AuthContext } from "../context/AuthContext";
 import { CartContext } from "../context/CartContext";
 
 const PageContainer = styled.div`
   min-height: 100vh;
-  
+
   background-color: #1a2332;
   color: white;
 `;
@@ -58,7 +58,7 @@ const FilterSection = styled.div`
   display: flex;
   gap: 1rem;
   margin-bottom: 2rem;
-  
+
   select {
     background: #1e2a3a;
     color: white;
@@ -67,10 +67,10 @@ const FilterSection = styled.div`
     border-radius: 6px;
     min-width: 150px;
     cursor: pointer;
-    
+
     &:focus {
       outline: none;
-      border-color: #00FF40;
+      border-color: #00ff40;
     }
   }
 `;
@@ -109,8 +109,9 @@ const AllCourses = () => {
 
   // Update the context imports and usage
   const { user } = useContext(AuthContext);
-  const { addToCart, addToFavorites, isInCart, isInFavorites } = useContext(CartContext);
-  
+  const { addToCart, addToFavorites, isInCart, isInFavorites } =
+    useContext(CartContext);
+
   // Update the handleAddToCart function
   const handleAddToCart = async (course) => {
     if (!user) {
@@ -127,7 +128,7 @@ const AllCourses = () => {
       alert(error.message || "Failed to add course to cart. Please try again.");
     }
   };
-  
+
   // Update the handleToggleFavorite function
   const handleToggleFavorite = async (courseId) => {
     if (!user) {
@@ -137,29 +138,33 @@ const AllCourses = () => {
     try {
       const result = await addToFavorites(courseId);
       if (result.success) {
-        setCourses(courses.map(course => 
-          course.id === courseId 
-            ? { ...course, isFavorite: !course.isFavorite }
-            : course
-        ));
+        setCourses(
+          courses.map((course) =>
+            course.id === courseId
+              ? { ...course, isFavorite: !course.isFavorite }
+              : course
+          )
+        );
       }
     } catch (error) {
       console.error("Error toggling favorite:", error);
       alert(error.message || "Failed to update favorite status");
     }
   };
-  
+
   // Update the CourseCard component usage
   const loadCourses = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8000/api/courses/courses/');
-      const formattedCourses = response.data.map(course => ({
+      const response = await axios.get(
+        "http://127.0.0.1:8000/api/courses/courses/"
+      );
+      const formattedCourses = response.data.map((course) => ({
         ...course,
-        displayPrice: course.is_free 
-          ? "Free" 
-          : typeof course.course_price === 'number'
-            ? `Rs${course.course_price.toFixed(2)}`
-            : "Rs0.00"
+        displayPrice: course.is_free
+          ? "Free"
+          : typeof course.course_price === "number"
+          ? `Rs${course.course_price.toFixed(2)}`
+          : "Rs0.00",
       }));
       setCourses(formattedCourses);
       setLoading(false);
@@ -171,20 +176,22 @@ const AllCourses = () => {
 
   // Fix the price filtering logic
   const getFilteredCourses = () => {
-    return courses.filter(course => {
+    return courses.filter((course) => {
       const searchTerm = searchQuery.toLowerCase().trim();
-      const matchesSearch = searchTerm === '' || 
+      const matchesSearch =
+        searchTerm === "" ||
         course.title?.toLowerCase().includes(searchTerm) ||
         course.description?.toLowerCase().includes(searchTerm);
-        
-      const matchesCategory = category === 'all' || course.category === category;
-      
+
+      const matchesCategory =
+        category === "all" || course.category === category;
+
       let matchesPrice = true;
-      if (priceRange !== 'all') {
-        const [min, max] = priceRange.split('-').map(Number);
+      if (priceRange !== "all") {
+        const [min, max] = priceRange.split("-").map(Number);
         const price = parseFloat(course.course_price) || 0;
 
-        if (priceRange === '10001-') {
+        if (priceRange === "10001-") {
           matchesPrice = price > 10000;
         } else {
           matchesPrice = price >= min && price <= max;
@@ -203,7 +210,10 @@ const AllCourses = () => {
   const filteredCourses = getFilteredCourses();
   const indexOfLastCourse = currentPage * coursesPerPage;
   const indexOfFirstCourse = indexOfLastCourse - coursesPerPage;
-  const currentCourses = filteredCourses.slice(indexOfFirstCourse, indexOfLastCourse);
+  const currentCourses = filteredCourses.slice(
+    indexOfFirstCourse,
+    indexOfLastCourse
+  );
   const totalPages = Math.ceil(filteredCourses.length / coursesPerPage);
 
   // Add the missing PaginationContainer styling
@@ -214,20 +224,20 @@ const AllCourses = () => {
     gap: 0.5rem;
     margin: 2rem 0;
   `;
-  
+
   const PageButton = styled.button`
-    background: ${props => props.active ? '#00FF40' : '#1e2a3a'};
-    color: ${props => props.active ? 'black' : 'white'};
+    background: ${(props) => (props.active ? "#00FF40" : "#1e2a3a")};
+    color: ${(props) => (props.active ? "black" : "white")};
     border: none;
     padding: 0.5rem 1rem;
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s;
-  
+
     &:hover:not(:disabled) {
-      background: ${props => props.active ? '#00DD30' : '#2d3748'};
+      background: ${(props) => (props.active ? "#00DD30" : "#2d3748")};
     }
-  
+
     &:disabled {
       opacity: 0.5;
       cursor: not-allowed;
@@ -255,14 +265,20 @@ const AllCourses = () => {
           </SearchBar>
 
           <FilterSection>
-            <select value={category} onChange={(e) => setCategory(e.target.value)}>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+            >
               <option value="all">All Categories</option>
               <option value="programming">Programming</option>
               <option value="design">Design</option>
               <option value="music">Music</option>
             </select>
 
-            <select value={priceRange} onChange={(e) => setPriceRange(e.target.value)}>
+            <select
+              value={priceRange}
+              onChange={(e) => setPriceRange(e.target.value)}
+            >
               <option value="all">All Prices</option>
               <option value="0-1000">Rs 0 - Rs 1000</option>
               <option value="1001-5000">Rs 1000 - Rs 5000</option>
@@ -278,12 +294,12 @@ const AllCourses = () => {
           <>
             <CoursesGrid>
               {currentCourses.map((course) => (
-                <CourseCard 
-                  key={course.id} 
+                <CourseCard
+                  key={course.id}
                   course={course}
                   onAddToCart={() => handleAddToCart(course)}
                   onToggleFavorite={() => handleToggleFavorite(course.id)}
-                  isStudent={user?.role === 'student'}
+                  isStudent={user?.role === "student"}
                   isInCart={isInCart?.(course.id)}
                   isInFavorites={isInFavorites?.(course.id)}
                 />
@@ -292,12 +308,12 @@ const AllCourses = () => {
 
             <PaginationContainer>
               <PageButton
-                onClick={() => setCurrentPage(prev => prev - 1)}
+                onClick={() => setCurrentPage((prev) => prev - 1)}
                 disabled={currentPage === 1}
               >
                 <FaArrowLeft />
               </PageButton>
-              
+
               {[...Array(totalPages)].map((_, index) => (
                 <PageButton
                   key={index + 1}
@@ -309,7 +325,7 @@ const AllCourses = () => {
               ))}
 
               <PageButton
-                onClick={() => setCurrentPage(prev => prev + 1)}
+                onClick={() => setCurrentPage((prev) => prev + 1)}
                 disabled={currentPage === totalPages}
               >
                 <FaArrowRight />
@@ -318,7 +334,7 @@ const AllCourses = () => {
           </>
         )}
       </ContentWrapper>
-      
+
       <Footer />
     </PageContainer>
   );

@@ -1,4 +1,5 @@
 import api from "../api";
+import axios from "axios";
 
 const forumService = {
   // Get all forums
@@ -8,7 +9,16 @@ const forumService = {
 
   // Create a new forum (instructors only)
   createForum: async (forumData) => {
-    const token = localStorage.getItem('access');
+    // Get the correct token - try both access and access_token
+    const token = localStorage.getItem('access') || localStorage.getItem('access_token');
+    
+    if (!token) {
+      console.error('No authentication token found');
+      throw new Error('You must be logged in to create a forum');
+    }
+    
+    console.log('Using token:', token.substring(0, 10) + '...');
+    
     const userEmail = localStorage.getItem('email');
     const userType = localStorage.getItem('userType');
     
@@ -67,12 +77,11 @@ const forumService = {
     console.log('Sending forum data:', enrichedData);
     
     try {
-      const response = await api.post("/forums/forums/", enrichedData, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      // Use the api instance which should handle token properly
+      const response = await api.post(
+        "/forums/forums/", 
+        enrichedData
+      );
       console.log('Forum creation successful:', response.data);
       return response.data;
     } catch (error) {
@@ -81,6 +90,13 @@ const forumService = {
         data: error.response?.data,
         message: error.message
       });
+      
+      // Handle authentication errors specifically
+      if (error.response?.status === 401) {
+        console.log('Authentication failed. Attempting to refresh token...');
+        // You might want to implement token refresh logic here
+        throw new Error('Your session has expired. Please log in again.');
+      }
       
       // Check if this is a permission error from the backend
       if (error.response?.status === 403) {
@@ -140,4 +156,26 @@ const forumService = {
   },
 };
 
+// Add these methods to your existing forumService
+const getForumMessages = async (forumId) => {
+  const response = await axios.get(`http://localhost:8000/api/forums/${forumId}/messages/`, {
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+    },
+  });
+  return response.data;
+};
+
+const sendForumMessage = async (forumId, content) => {
+  const response = await axios.post(`http://localhost:8000/api/forums/${forumId}/messages/`, {
+    content
+  }, {
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+    },
+  });
+  return response.data;
+};
+
+// Fix the export section at the bottom of the file
 export default forumService;

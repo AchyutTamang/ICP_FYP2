@@ -8,7 +8,7 @@ import {
   FaRegStar,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
-
+import axios from "axios";
 
 const CourseCard = ({
   course,
@@ -20,10 +20,10 @@ const CourseCard = ({
   // Add state for tooltips
   const [showCartTooltip, setShowCartTooltip] = useState(false);
   const [showFavoriteTooltip, setShowFavoriteTooltip] = useState(false);
-  const [showBottomFavoriteTooltip, setShowBottomFavoriteTooltip] = useState(false);
+  const [showBottomFavoriteTooltip, setShowBottomFavoriteTooltip] =
+    useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [isAddingToFavorites, setIsAddingToFavorites] = useState(false);
-  
 
   // Generate star rating display
   const renderRating = (rating) => {
@@ -62,14 +62,42 @@ const CourseCard = ({
 
     // Prevent multiple clicks
     if (isAddingToCart) return;
-    
+
     try {
       setIsAddingToCart(true);
-      await onAddToCart();
+      const token = localStorage.getItem("access_token");
+
+      const response = await axios.post(
+        "http://localhost:8000/api/cart/cart/",
+        { course_id: course.id },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.status === 201) {
+        toast.success("Course added to cart successfully!");
+        // Optionally trigger a cart update if needed
+        if (onAddToCart) {
+          onAddToCart();
+        }
+      }
+    } catch (error) {
+      console.error("Error adding to cart:", error);
+      if (error.response?.data?.detail) {
+        toast.error(error.response.data.detail);
+      } else if (error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      } else {
+        toast.error("Failed to add course to cart. Please try again.");
+      }
     } finally {
       setIsAddingToCart(false);
     }
-  }, [isAuthenticated, userRole, onAddToCart, isAddingToCart]);
+  }, [isAuthenticated, userRole, course.id, onAddToCart, isAddingToCart]);
 
   const handleAddToFavorites = useCallback(async () => {
     if (!isAuthenticated) {
@@ -84,7 +112,7 @@ const CourseCard = ({
 
     // Prevent multiple clicks
     if (isAddingToFavorites) return;
-    
+
     try {
       setIsAddingToFavorites(true);
       await onAddToFavorites();
@@ -144,6 +172,7 @@ const CourseCard = ({
 
       <div className="p-6">
         {/* Course Title */}
+        
         <Link to={`/courses/${course.id}`}>
           <h3 className="text-xl font-bold text-white mb-2 truncate hover:text-[#00FF40] transition-colors duration-300">
             {course.title}
@@ -255,7 +284,6 @@ const CourseCard = ({
           </div>
         </div>
       </div>
-      
     </div>
   );
 };

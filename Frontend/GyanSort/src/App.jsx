@@ -29,9 +29,10 @@ import ResetPassword from "./components/auth/ResetPassword";
 import CreateCourse from "./pages/instructor/CreateCourse";
 import InstructorCourses from "./pages/instructor/InstructorCourses";
 import CreateModules from "./pages/instructor/CreateModules";
-
+import PaymentStatus from "./pages/PaymentStatus";
 import InstructorDashboard from "./pages/instructor/InstructorDashboard";
 import CategoryManagement from "./pages/instructor/CategoryManagement";
+import CourseDescription from "./components/Courses/CourseDescription";
 
 // Debug component to help diagnose routing issues
 const RouteDebugger = () => {
@@ -112,12 +113,8 @@ const HomeRoute = () => {
   return <Home />;
 };
 
-// Add this import at the top with your other imports
-// import EmailVerification from "./pages/EmailVerification";
 
 
-// Add this route to your Routes component
-{/* <Route path="/verify-email" element={<EmailVerification />} />; */}
 
 function App() {
   return (
@@ -167,6 +164,10 @@ function App() {
               </ProtectedRoute>
             }
           />
+
+          <Route path="/payment-status/:status" element={<PaymentStatus />} />
+          <Route path="/courses/:courseId" element={<CourseDescription />} />
+
           <Route
             path="/instructor/courses"
             element={
@@ -179,7 +180,7 @@ function App() {
             path="/instructor/courses/:courseId/modules"
             element={<CreateModules />}
           />
-         
+
           <Route
             path="/payment/:orderId"
             element={

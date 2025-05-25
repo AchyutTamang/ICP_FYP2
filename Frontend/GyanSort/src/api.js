@@ -1,22 +1,26 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8000/api';
-
-// Create axios instance with base URL
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: 'http://localhost:8000/api',
   headers: {
     'Content-Type': 'application/json',
-  },
+  }
 });
 
-// Add request interceptor to include auth token
+// Add a request interceptor to include the token in all requests
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token');
+    // Try to get token from multiple possible storage keys
+    const token = localStorage.getItem('access') || 
+                 localStorage.getItem('access_token');
+    
     if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
+      config.headers.Authorization = `Bearer ${token}`;
+      console.log('Adding auth header with token');
+    } else {
+      console.warn('No token found for request');
     }
+    
     return config;
   },
   (error) => {

@@ -30,22 +30,14 @@ const CreateForum = () => {
         is_active: true
       };
       
-      console.log('Submitting forum data:', forumData);
-      
       const response = await forumService.createForum(forumData);
-      console.log('Forum created successfully:', response);
       navigate("/forum");
     } catch (error) {
       console.error("Error creating forum:", error);
-      // More detailed error handling
-      if (error.response) {
-        console.error("Server response:", error.response.data);
-        setError(error.response.data.detail || "Server error. Please try again.");
-      } else if (error.request) {
-        console.error("No response received");
-        setError("No response from server. Please check your connection.");
+      if (error.response?.data?.detail) {
+        setError(error.response.data.detail);
       } else {
-        setError(error.message || "Failed to create forum. Please try again.");
+        setError("Failed to create forum. Please try again.");
       }
     } finally {
       setLoading(false);

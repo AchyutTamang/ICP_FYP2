@@ -21,21 +21,19 @@ const ForumList = () => {
     const fetchForums = async () => {
       try {
         const response = await forumService.getForums();
-        setForums(response.data);
-        setFilteredForums(response.data);
+        // Initialize with empty array if response.data is undefined
+        const forumsData = response.data || [];
+        setForums(forumsData);
+        setFilteredForums(forumsData);
 
         // Fetch participants for each forum
         const participantsData = {};
-        for (const forum of response.data) {
+        for (const forum of forumsData) {
           try {
-            const participantsResponse =
-              await forumService.getForumParticipants(forum.id);
-            participantsData[forum.id] = participantsResponse.data;
+            const participantsResponse = await forumService.getForumParticipants(forum.id);
+            participantsData[forum.id] = participantsResponse.data || [];
           } catch (error) {
-            console.error(
-              `Error fetching participants for forum ${forum.id}:`,
-              error
-            );
+            console.error(`Error fetching participants for forum ${forum.id}:`, error);
             participantsData[forum.id] = [];
           }
         }
@@ -44,6 +42,8 @@ const ForumList = () => {
         setLoading(false);
       } catch (error) {
         console.error("Error fetching forums:", error);
+        setForums([]);
+        setFilteredForums([]);
         setLoading(false);
       }
     };
