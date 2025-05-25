@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import forumService from "../../services/forumService";
 import { useAuth } from "../../context/AuthContext";
 import Navbar from "../stick/Navbar";
+// Import jwt-decode correctly
+import { jwtDecode } from "jwt-decode";
 
 const ForumList = () => {
   const [forums, setForums] = useState([]);
@@ -17,14 +19,67 @@ const ForumList = () => {
   // List of topics for the sidebar
   const topics = ["All", "Python", "DSA", "SEO"];
 
+  // Add state for decoded token info
+  const [decodedUser, setDecodedUser] = useState(null);
+
+  // Add a direct state for user type from localStorage
+  const [localUserType, setLocalUserType] = useState(localStorage.getItem('userType'));
+  
+  useEffect(() => {
+    // Check localStorage directly for user type
+    const userType = localStorage.getItem('userType');
+    setLocalUserType(userType);
+    console.log('User type from localStorage:', userType);
+    
+    // Decode token to get user information
+    const decodeToken = () => {
+      try {
+        const token = localStorage.getItem('access');
+        if (token) {
+          const decoded = jwtDecode(token);
+          console.log('Decoded token:', decoded);
+          setDecodedUser(decoded);
+        }
+      } catch (error) {
+        console.error('Error decoding token:', error);
+      }
+    };
+
+    decodeToken();
+  }, []);
+
   useEffect(() => {
     const fetchForums = async () => {
       try {
         const response = await forumService.getForums();
-        // Initialize with empty array if response.data is undefined
-        const forumsData = response.data || [];
-        setForums(forumsData);
-        setFilteredForums(forumsData);
+        console.log('Forums data received:', response);
+        
+        const forumsData = Array.isArray(response.data) ? response.data : [];
+        
+        // Use decoded token info to determine user role and ID
+        const userInfo = decodedUser || {};
+        const currentUserRole = userInfo.role || userRole;
+        const currentUserId = userInfo.user_id || user?.id;
+        const currentUserEmail = userInfo.email || user?.email;
+        
+        console.log('Current user info:', { 
+          role: currentUserRole, 
+          id: currentUserId, 
+          email: currentUserEmail 
+        });
+        
+        if (currentUserRole === 'instructor') {
+          const filteredForums = forumsData.filter(forum => 
+            forum.created_by === currentUserId || 
+            forum.created_by_email === currentUserEmail
+          );
+          setForums(filteredForums);
+          setFilteredForums(filteredForums);
+        } else {
+          // Students see all forums
+          setForums(forumsData);
+          setFilteredForums(forumsData);
+        }
 
         // Fetch participants for each forum
         const participantsData = {};
@@ -39,17 +94,17 @@ const ForumList = () => {
         }
 
         setForumParticipants(participantsData);
-        setLoading(false);
       } catch (error) {
         console.error("Error fetching forums:", error);
         setForums([]);
         setFilteredForums([]);
+      } finally {
         setLoading(false);
       }
     };
 
     fetchForums();
-  }, []);
+  }, [user, userRole, decodedUser]);
 
   // Filter forums based on search term and selected topic
   useEffect(() => {
@@ -109,9 +164,50 @@ const ForumList = () => {
 
   // Check if user is the creator of the forum
   const isForumCreator = (forum) => {
+    const currentUserId = decodedUser?.user_id || user?.id;
+    const currentUserEmail = decodedUser?.email || user?.email;
+    
+    console.log('Checking if creator:', {
+      forumCreatedBy: forum.created_by,
+      forumCreatedByEmail: forum.created_by_email,
+      currentUserId,
+      currentUserEmail
+    });
+    
     return (
-      forum.created_by === user?.id || forum.created_by_email === user?.email
+      String(forum.created_by) === String(currentUserId) || 
+      forum.created_by_email === currentUserEmail
     );
+  };
+
+  // Update hasJoinedForum to use decoded token info
+  const hasJoinedForum = (forumId) => {
+    const participants = forumParticipants[forumId] || [];
+    const currentUserId = decodedUser?.user_id || user?.id;
+    const currentUserEmail = decodedUser?.email || user?.email;
+    const currentUserRole = decodedUser?.role || userRole;
+    
+    // If user is an instructor and created this forum, they don't need to join
+    if (currentUserRole === 'instructor' && isForumCreator({ id: forumId, created_by: forums.find(f => f.id === forumId)?.created_by })) {
+      return true;
+    }
+    
+    // For students, check if they're in the participants list
+    const isParticipant = participants.some(
+      participant => 
+        String(participant.student_id) === String(currentUserId) || 
+        participant.student_email === currentUserEmail
+    );
+    
+    console.log('Checking if joined:', {
+      forumId,
+      participants,
+      currentUserId,
+      currentUserEmail,
+      isParticipant
+    });
+    
+    return isParticipant;
   };
 
   if (loading) {
@@ -125,6 +221,7 @@ const ForumList = () => {
     );
   }
 
+  // Modify the forum display section to directly check localStorage
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800">
       <Navbar />
@@ -230,81 +327,34 @@ const ForumList = () => {
                       </div>
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-white font-bold">{forum.title}</h3>
-                      <p className="text-green-400 text-sm">
-                        Host @
-                        {forum.created_by_name
-                          ? forum.created_by_name
-                              .toLowerCase()
-                              .replace(/\s+/g, "")
-                          : "unknown"}
+                      <h3 className="text-white text-lg font-semibold">
+                        {forum.title}
+                      </h3>
+                      <p className="text-gray-300 text-sm mt-1">
+                        {forum.description}
                       </p>
-                      <p className="text-white text-sm mt-2">
-                        {forum.description || "Lesson & descr"}
-                      </p>
-                      <div className="mt-2">
-                        <span className="inline-block bg-gray-600 rounded-md px-2 py-1 text-xs text-white">
-                          {forum.is_active ? "Active" : "Inactive"}
-                        </span>
+                      <div className="flex justify-between items-center mt-2">
+                        <div className="text-gray-400 text-xs">
+                          Host: {forum.created_by_name || "Unknown"}
+                        </div>
+                        <div className="text-gray-400 text-xs">
+                          {forumParticipants[forum.id]?.length || 0} participants
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-xs text-gray-400 text-right">
-                      created:
-                      <br />
-                      {new Date(forum.created_at).toLocaleDateString()}
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-4 border-t border-gray-600 flex justify-between items-center">
-                    <div className="flex items-center text-gray-400">
-                      <span className="flex items-center">
-                        <svg
-                          width="20"
-                          height="20"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            d="M12 12C14.21 12 16 10.21 16 8C16 5.79 14.21 4 12 4C9.79 4 8 5.79 8 8C8 10.21 9.79 12 12 12ZM12 14C9.33 14 4 15.34 4 18V20H20V18C20 15.34 14.67 14 12 14Z"
-                            fill="currentColor"
-                          />
-                        </svg>
-                        {forumParticipants[forum.id]?.length > 1 && (
-                          <svg
-                            width="20"
-                            height="20"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="-ml-2"
+                      
+                      {/* Simplified join button logic */}
+                      {localStorage.getItem('userType') === 'student' && 
+                       String(forum.created_by) !== String(localStorage.getItem('userId')) && (
+                        <div className="mt-3 text-right">
+                          <button
+                            onClick={(e) => handleJoinForum(e, forum.id)}
+                            className="bg-green-500 hover:bg-green-600 text-white text-sm px-3 py-1 rounded"
                           >
-                            <path
-                              d="M12 12C14.21 12 16 10.21 16 8C16 5.79 14.21 4 12 4C9.79 4 8 5.79 8 8C8 10.21 9.79 12 12 12ZM12 14C9.33 14 4 15.34 4 18V20H20V18C20 15.34 14.67 14 12 14Z"
-                              fill="currentColor"
-                            />
-                          </svg>
-                        )}
-                        {forumParticipants[forum.id]?.length || 0} people joined
-                      </span>
+                            Join Room
+                          </button>
+                        </div>
+                      )}
                     </div>
-
-                    {/* Only show Join Now button for students and forums they didn't create */}
-                    {userRole === "student" && !isForumCreator(forum) && (
-                      <button
-                        className="bg-green-500 hover:bg-green-600 text-white px-4 py-1 rounded-full"
-                        onClick={(e) => handleJoinForum(e, forum.id)}
-                      >
-                        Join Now
-                      </button>
-                    )}
-
-                    {/* Show "Your Forum" for instructors who created this forum */}
-                    {userRole === "instructor" && isForumCreator(forum) && (
-                      <span className="text-green-400 px-4 py-1">
-                        Your Forum
-                      </span>
-                    )}
                   </div>
                 </div>
               ))

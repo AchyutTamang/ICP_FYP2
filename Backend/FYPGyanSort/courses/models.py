@@ -121,13 +121,17 @@ class Course(models.Model):
         help_text='Maximum file size: 10MB. Allowed formats: JPG, JPEG, PNG'
     )
     demo_video = models.FileField(
-        upload_to='course_demos/',
-        validators=[
-            FileExtensionValidator(['mp4', 'webm']),
-            validate_file_size
-        ],
-        help_text='Maximum file size: 300MB. Allowed formats: MP4, WEBM'
-    )
+    upload_to='course_demos/',
+    null=True,
+    blank=True,
+    validators=[
+        FileExtensionValidator(['mp4', 'webm']),
+        validate_file_size
+    ],
+    help_text='Maximum file size: 300MB. Allowed formats: MP4, WEBM'
+)
+
+    
     reviews = models.ManyToManyField(Review, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useParams, Link } from "react-router-dom";
+
+import { useParams, Link, useNavigate } from "react-router-dom";
 import forumService from "../../services/forumService";
 import { useAuth } from "../../context/AuthContext";
 import Navbar from "../stick/Navbar";
@@ -7,12 +7,14 @@ import Footer from "../stick/Footer";
 
 const ForumChat = () => {
   const { forumId } = useParams();
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
   const [forum, setForum] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [isForumMember, setIsForumMember] = useState(false);
   const messagesEndRef = useRef(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchForumDetails = async () => {
@@ -20,6 +22,41 @@ const ForumChat = () => {
         const forumResponse = await forumService.getForumDetails(forumId);
         setForum(forumResponse.data);
 
+        // Check if the user is a member of this forum
+        if (userRole === 'student') {
+          try {
+            const participantsResponse = await forumService.getForumParticipants(forumId);
+            const participants = participantsResponse.data || [];
+            
+            // Check if current user is in the participants list
+            const isMember = participants.some(participant => 
+              participant.student_id === user?.id || 
+              participant.student_email === user?.email
+            );
+            
+            setIsForumMember(isMember);
+            
+            // If not a member, don't load messages
+            if (!isMember) {
+              setLoading(false);
+              return;
+            }
+          } catch (error) {
+            console.error("Error checking forum membership:", error);
+          }
+        } else if (userRole === 'instructor') {
+          // Instructors can access if they created the forum
+          const isCreator = forumResponse.data.created_by === user?.id || 
+                           forumResponse.data.created_by_email === user?.email;
+          setIsForumMember(isCreator);
+          
+          if (!isCreator) {
+            setLoading(false);
+            return;
+          }
+        }
+
+        // Load messages only if user has access
         const messagesResponse = await forumService.getMessages(forumId);
         setMessages(messagesResponse.data);
 
@@ -32,16 +69,18 @@ const ForumChat = () => {
 
     fetchForumDetails();
 
-    // Set up polling for new messages
+    // Set up polling for new messages only if user has access
     const interval = setInterval(() => {
-      forumService
-        .getMessages(forumId)
-        .then((response) => setMessages(response.data))
-        .catch((error) => console.error("Error polling messages:", error));
+      if (isForumMember) {
+        forumService
+          .getMessages(forumId)
+          .then((response) => setMessages(response.data))
+          .catch((error) => console.error("Error polling messages:", error));
+      }
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [forumId]);
+  }, [forumId, user, userRole, isForumMember]);
 
   useEffect(() => {
     // Scroll to bottom when messages change
@@ -67,6 +106,19 @@ const ForumChat = () => {
     }
   };
 
+  // Add a join forum handler
+  const handleJoinForum = async () => {
+    try {
+      await forumService.joinForum(forumId);
+      setIsForumMember(true);
+      // Refresh forum details after joining
+      const messagesResponse = await forumService.getMessages(forumId);
+      setMessages(messagesResponse.data);
+    } catch (error) {
+      console.error("Error joining forum:", error);
+    }
+  };
+
   if (loading) {
     return (
       <>
@@ -82,6 +134,35 @@ const ForumChat = () => {
       <>
         <Navbar />
         <div className="text-center py-10">Forum not found</div>
+        <Footer />
+      </>
+    );
+  }
+
+  // Show join prompt for students who haven't joined
+  if (userRole === 'student' && !isForumMember) {
+    return (
+      <>
+        <Navbar />
+        <div className="container mx-auto px-4 py-6 max-w-4xl min-h-screen pt-24">
+          <div className="mb-4">
+            <Link to="/forum" className="text-green-400 hover:text-green-500">
+              &larr; Back to Forums
+            </Link>
+          </div>
+          
+          <div className="bg-gray-700 bg-opacity-50 rounded-lg shadow-md p-8 text-center">
+            <h2 className="text-xl font-bold text-white mb-4">{forum.title}</h2>
+            <p className="text-gray-300 mb-6">{forum.description}</p>
+            <p className="text-yellow-400 mb-6">You need to join this forum to view and participate in discussions.</p>
+            <button 
+              onClick={handleJoinForum}
+              className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg"
+            >
+              Join Forum
+            </button>
+          </div>
+        </div>
         <Footer />
       </>
     );

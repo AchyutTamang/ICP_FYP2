@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'storages',
     
 ]
 
@@ -209,8 +210,8 @@ AUTHENTICATION_BACKENDS = [
 # Add JWT settings
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=20),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=10),
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'USER_ID_FIELD': 'id',  # Default user ID field
@@ -257,8 +258,15 @@ AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_KEY')
 AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_BUCKET_NAME')
 AWS_S3_REGION_NAME = os.getenv('AWS_REGION')
-# CLOUDFRONT_DOMAIN = os.getenv('CLOUDFRONT_DOMAIN')
-# AWS_S3_CUSTOM_DOMAIN = f'{CLOUDFRONT_DOMAIN}'
+AWS_CLOUDFRONT_DOMAIN = 'd7yzmscn4bto5.cloudfront.net'
+
+# S3 file storage settings
+DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+AWS_S3_FILE_OVERWRITE = False
+AWS_DEFAULT_ACL = None
+AWS_S3_OBJECT_PARAMETERS = {
+    'CacheControl': 'max-age=86400',
+}
 
 
 # Khalti Payment Settings
