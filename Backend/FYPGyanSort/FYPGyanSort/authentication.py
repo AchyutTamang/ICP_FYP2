@@ -4,6 +4,7 @@ import jwt
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from instructors.models import Instructor
+from students.models import Student
 
 class CustomJWTAuthentication(JWTAuthentication):
     def authenticate(self, request):
@@ -18,17 +19,26 @@ class CustomJWTAuthentication(JWTAuthentication):
             decoded_token = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
             print(f"Decoded token: {decoded_token}")
             
-            # Check if this is an instructor token
-            if decoded_token.get('user_type') == 'instructor':
-                print(f"Token is for instructor: {decoded_token.get('email')}")
+            user_type = decoded_token.get('type')
+            email = decoded_token.get('email')
+            
+            if user_type == 'instructor':
                 try:
-                    instructor = Instructor.objects.get(email=decoded_token.get('email'))
-                    print(f"Found instructor: {instructor}")
+                    instructor = Instructor.objects.get(email=email)
                     return (instructor, token)
                 except Instructor.DoesNotExist:
-                    print(f"No instructor found with email: {decoded_token.get('email')}")
+                    print(f"No instructor found with email: {email}")
+                    return None
             
-            # Fall back to standard JWT authentication
+            elif user_type == 'student':
+                try:
+                    student = Student.objects.get(email=email)
+                    return (student, token)
+                except Student.DoesNotExist:
+                    print(f"No student found with email: {email}")
+                    return None
+            
+            # If no user_type or unrecognized type, fall back to standard JWT authentication
             return super().authenticate(request)
             
         except jwt.ExpiredSignatureError:

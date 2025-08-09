@@ -108,24 +108,15 @@ class RegisterView(APIView):
 class VerifyEmail(APIView):
     permission_classes = [AllowAny]
 
-    def get(self, request, token):
+    def get(self, request, uid, token):
         try:
-            print(f"Received verification request with token: {token}")
+            # Decode the uid to get user pk
+            user_id = force_str(urlsafe_base64_decode(uid))
+            user = Student.objects.get(pk=user_id)
             
-            # Handle potential URL encoding issues
-            token = urllib.parse.unquote(token)
-            
-            try:
-                # Decode the token
-                token_obj = AccessToken(token)
-                user_id = token_obj['user_id']  # Access user_id directly
-                print(f"Decoded user_id: {user_id}")
-                
-                user = Student.objects.get(id=user_id)
-                print(f"Found user: {user.email}")
-                
+            # Check if the token is valid
+            if default_token_generator.check_token(user, token):
                 if user.email_verified:
-                    print("User already verified")
                     return Response({
                         'success': True,
                         'message': 'Email already verified',
@@ -136,33 +127,22 @@ class VerifyEmail(APIView):
                 user.is_active = True
                 user.email_verified = True
                 user.save()
-                print(f"User {user.email} verified successfully")
                 
                 return Response({
                     'success': True,
                     'message': 'Email verified successfully',
                     'redirect': '/login'
                 }, status=status.HTTP_200_OK)
-                
-            except TokenError as e:
-                print(f"Token error: {str(e)}")
+            else:
                 return Response({
                     'success': False,
-                    'message': 'Invalid or expired verification token'
+                    'message': 'Invalid verification token'
                 }, status=status.HTTP_400_BAD_REQUEST)
-            except Student.DoesNotExist:
-                print("User not found")
-                return Response({
-                    'success': False,
-                    'message': 'User not found'
-                }, status=status.HTTP_404_NOT_FOUND)
                 
-        except Exception as e:
-            print(f"Unexpected error: {str(e)}")
-            print(traceback.format_exc())
+        except (TypeError, ValueError, OverflowError, Student.DoesNotExist):
             return Response({
                 'success': False,
-                'message': 'Verification failed. Please try again or contact support.'
+                'message': 'Invalid verification link'
             }, status=status.HTTP_400_BAD_REQUEST)
 
 class StudentLoginView(APIView):
@@ -175,10 +155,15 @@ class StudentLoginView(APIView):
             try:
                 student = Student.objects.get(email=email)
                 if student.check_password(password):
-                    refresh = RefreshToken.for_user(student)
+                    # Create token payload
+                    token = RefreshToken()
+                    token['user_id'] = student.id
+                    token['email'] = student.email
+                    token['type'] = 'student'
+                    
                     return Response({
-                        'refresh': str(refresh),
-                        'access': str(refresh.access_token),
+                        'refresh': str(token),
+                        'access': str(token.access_token),
                     })
                 else:
                     return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
