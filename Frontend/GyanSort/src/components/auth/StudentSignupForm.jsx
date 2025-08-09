@@ -35,19 +35,23 @@ const StudentSignupForm = ({ onClose }) => {
         formData.email,
         formData.password
       );
-      toast.success(
-        "Registration successful! Please check your email to verify your account."
-      );
-      onClose();
-    } catch (err) {
-      console.error("Registration error:", err);
-      setError(
-        err.detail || err.message || "Registration failed. Please try again."
-      );
+      toast.success("Registration successful! Please check your email for verification.");
+      if (onClose) onClose();
+    } catch (error) {
+      console.error("Registration error:", error);
+      if (error.details) {
+        // Handle specific validation errors
+        const errorMessage = Object.values(error.details).join('\n');
+        setError(errorMessage);
+        toast.error(errorMessage);
+      } else {
+        setError(error.message || "Registration failed");
+        toast.error(error.message || "Registration failed");
+      }
     } finally {
       setLoading(false);
     }
-  };
+};
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">

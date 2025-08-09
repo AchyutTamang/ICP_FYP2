@@ -272,7 +272,7 @@ const AllCourses = () => {
               <option value="all">All Categories</option>
               <option value="programming">Programming</option>
               <option value="design">Design</option>
-              <option value="music">Music</option>
+              <option value="music">music</option>
             </select>
 
             <select

@@ -8,6 +8,8 @@ from .serializers import (CourseSerializer, CategorySerializer, ReviewSerializer
                          CourseDetailSerializer)
 from instructors.models import Instructor
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated, AllowAny
+import jwt
+from django.conf import settings
 
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
@@ -133,21 +135,28 @@ class ModuleViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         course = serializer.validated_data['course']
-        
+        import jwt
+        from django.conf import settings
+        decoded_token = jwt.decode(self.request.auth, settings.SECRET_KEY, algorithms=['HS256'])
         # Check if user is an instructor directly
-        if hasattr(self.request.auth, 'payload'):
-            token_payload = self.request.auth.payload
-            if token_payload.get('user_type') == 'instructor':
-                instructor_email = token_payload.get('email')
-                try:
-                    instructor = Instructor.objects.get(email=instructor_email)
-                    if course.instructor != instructor:
-                        raise PermissionDenied("You can only add modules to your own courses")
-                    serializer.save()
-                    return
-                except Instructor.DoesNotExist:
-                    pass
-        
+        print("Token indicates instructor lol", decoded_token)
+
+        # if hasattr(dec, 'payload'):
+        #     token_payload = self.request.auth.payload
+        if decoded_token.get('user_type') == 'instructor':
+            print("Token indicates instructor lol in conditional")
+            instructor_email = decoded_token.get('email')
+            try:
+                instructor = Instructor.objects.get(email=instructor_email)
+                print("Token indicates instructor lol in conditional", instructor)
+                print("Token indicates instructor lol in conditional", course)
+                if course.instructor != instructor:
+                    raise PermissionDenied("You can only add modules to your own courses")
+                serializer.save()
+                return
+            except Instructor.DoesNotExist:
+                pass
+    
         # Regular approach
         if hasattr(self.request.user, 'instructor'):
             if course.instructor != self.request.user.instructor:
@@ -173,30 +182,37 @@ class LessonViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         module = serializer.validated_data['module']
-        
-        # Check if user is an instructor directly
-        if hasattr(self.request.auth, 'payload'):
-            token_payload = self.request.auth.payload
-            if token_payload.get('user_type') == 'instructor':
-                instructor_email = token_payload.get('email')
-                try:
-                    instructor = Instructor.objects.get(email=instructor_email)
-                    if module.course.instructor != instructor:
-                        raise PermissionDenied("You can only add lessons to your own courses")
-                    serializer.save()
-                    return
-                except Instructor.DoesNotExist:
-                    pass
-        
-        # Regular approach
+
+        # Get instructor from token, if possible
+        try:
+            decoded_token = jwt.decode(self.request.auth, settings.SECRET_KEY, algorithms=['HS256'])
+        except Exception as e:
+            raise PermissionDenied("Invalid token")
+
+        instructor_email = decoded_token.get('email')
+        user_type = decoded_token.get('user_type')
+
+        if user_type == 'instructor' and instructor_email:
+            try:
+                instructor = Instructor.objects.get(email=instructor_email)
+            except Instructor.DoesNotExist:
+                raise PermissionDenied("Instructor not found")
+
+            # Check instructor owns the course
+            if module.course.instructor != instructor:
+                raise PermissionDenied("You can only add lessons to your own courses")
+            serializer.save()
+            return
+
+        # Fallback: check request.user
         if hasattr(self.request.user, 'instructor'):
             if module.course.instructor != self.request.user.instructor:
                 raise PermissionDenied("You can only add lessons to your own courses")
             serializer.save()
             return
-            
+
         raise PermissionDenied("Only instructors can add lessons")
-    
+
     @action(detail=True, methods=['get'])
     def contents(self, request, pk=None):
         lesson = self.get_object()
@@ -204,57 +220,126 @@ class LessonViewSet(viewsets.ModelViewSet):
         serializer = ContentSerializer(contents, many=True)
         return Response(serializer.data)
 
+
+# class ContentViewSet(viewsets.ModelViewSet):
+#     serializer_class = ContentSerializer
+#     permission_classes = [permissions.IsAuthenticated]
+    
+#     def get_queryset(self):
+#         return Content.objects.all()
+    
+#     def perform_create(self, serializer):
+#         lesson = serializer.validated_data['lesson']
+        
+#         # Check if user is an instructor directly
+#         if hasattr(self.request.auth, 'payload'):
+#             token_payload = self.request.auth.payload
+#             if token_payload.get('user_type') == 'instructor':
+#                 instructor_email = token_payload.get('email')
+#                 try:
+#                     instructor = Instructor.objects.get(email=instructor_email)
+#                     if lesson.module.course.instructor != instructor:
+#                         raise PermissionDenied("You can only add content to your own courses")
+#                     content = serializer.save()
+                    
+#                     # If this is a video, process it for CloudFront
+#                     if content.content_type == 'video' and content.file:
+#                         self.process_video_for_cloudfront(content)
+#                     return
+#                 except Instructor.DoesNotExist:
+#                     pass
+        
+#         # Regular approach
+#         if hasattr(self.request.user, 'instructor'):
+#             if lesson.module.course.instructor != self.request.user.instructor:
+#                 raise PermissionDenied("You can only add content to your own courses")
+#             content = serializer.save()
+            
+#             # If this is a video, process it for CloudFront
+#             if content.content_type == 'video' and content.file:
+#                 self.process_video_for_cloudfront(content)
+#             return
+            
+#         raise PermissionDenied("Only instructors can add content")
+    
+#     def process_video_for_cloudfront(self, content):
+#         # This would be implemented with AWS SDK
+#         # For now, we'll just add a placeholder
+#         try:
+#             from .utils import CloudFrontManager
+#             manager = CloudFrontManager()
+#             cloudfront_url = manager.upload_file(content.file.path, 'video/mp4')
+#             content.cloudfront_url = cloudfront_url
+#             content.save()
+#         except ImportError:
+#             # If AWS integration is not set up yet, use a placeholder
+#             content.cloudfront_url = f"arn:aws:cloudfront::003815598874:distribution/EJSETYRXOO2UW/{content.file.name}"
+#             content.save()
+            
 class ContentViewSet(viewsets.ModelViewSet):
     serializer_class = ContentSerializer
     permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
         return Content.objects.all()
-    
+
     def perform_create(self, serializer):
         lesson = serializer.validated_data['lesson']
-        
-        # Check if user is an instructor directly
-        if hasattr(self.request.auth, 'payload'):
-            token_payload = self.request.auth.payload
-            if token_payload.get('user_type') == 'instructor':
+
+        # Try to get instructor from JWT token
+        instructor = None
+        user_type = None
+        instructor_email = None
+
+        # Handle both DRF SimpleJWT and direct JWT scenarios
+        token = getattr(self.request, 'auth', None)
+        if token:
+            try:
+                # If using DRF SimpleJWT, token may have a payload
+                if hasattr(token, 'payload'):
+                    token_payload = token.payload
+                else:
+                    import jwt
+                    from django.conf import settings
+                    token_payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
+                user_type = token_payload.get('user_type')
                 instructor_email = token_payload.get('email')
-                try:
-                    instructor = Instructor.objects.get(email=instructor_email)
-                    if lesson.module.course.instructor != instructor:
-                        raise PermissionDenied("You can only add content to your own courses")
-                    content = serializer.save()
-                    
-                    # If this is a video, process it for CloudFront
-                    if content.content_type == 'video' and content.file:
-                        self.process_video_for_cloudfront(content)
-                    return
-                except Instructor.DoesNotExist:
-                    pass
-        
-        # Regular approach
-        if hasattr(self.request.user, 'instructor'):
-            if lesson.module.course.instructor != self.request.user.instructor:
-                raise PermissionDenied("You can only add content to your own courses")
+                if user_type == 'instructor' and instructor_email:
+                    from instructors.models import Instructor
+                    try:
+                        instructor = Instructor.objects.get(email=instructor_email)
+                    except Instructor.DoesNotExist:
+                        pass
+            except Exception:
+                pass
+
+        # Instructor via token
+        if instructor and lesson.module.course.instructor == instructor:
             content = serializer.save()
-            
-            # If this is a video, process it for CloudFront
             if content.content_type == 'video' and content.file:
                 self.process_video_for_cloudfront(content)
             return
-            
-        raise PermissionDenied("Only instructors can add content")
-    
+
+        # Instructor via request.user
+        if hasattr(self.request.user, 'instructor'):
+            if lesson.module.course.instructor == self.request.user.instructor:
+                content = serializer.save()
+                if content.content_type == 'video' and content.file:
+                    self.process_video_for_cloudfront(content)
+                return
+
+        raise PermissionDenied("Only instructors can add content to their own courses")
+
     def process_video_for_cloudfront(self, content):
-        # This would be implemented with AWS SDK
-        # For now, we'll just add a placeholder
+        """Upload the video to CloudFront (really S3, then distribute via CloudFront) and save the URL."""
         try:
             from .utils import CloudFrontManager
             manager = CloudFrontManager()
+            # This should upload to S3 and return a CloudFront-distributed URL
             cloudfront_url = manager.upload_file(content.file.path, 'video/mp4')
             content.cloudfront_url = cloudfront_url
             content.save()
-        except ImportError:
-            # If AWS integration is not set up yet, use a placeholder
+        except Exception as e:
+            # Placeholder: this is NOT a real CloudFront URL!
             content.cloudfront_url = f"https://your-cloudfront-distribution.cloudfront.net/{content.file.name}"
             content.save()

@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import Student
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
 
 @admin.register(Student)
 class StudentAdmin(UserAdmin):
@@ -22,3 +23,15 @@ class StudentAdmin(UserAdmin):
             'fields': ('email', 'fullname', 'password1', 'password2'),
         }),
     )
+
+    def delete_model(self, request, obj):
+        # Delete associated tokens first
+        OutstandingToken.objects.filter(user_id=obj.id).delete()
+        # Then delete the student
+        super().delete_model(request, obj)
+
+    def delete_queryset(self, request, queryset):
+        # Handle bulk deletions
+        for obj in queryset:
+            OutstandingToken.objects.filter(user_id=obj.id).delete()
+        super().delete_queryset(request, queryset)

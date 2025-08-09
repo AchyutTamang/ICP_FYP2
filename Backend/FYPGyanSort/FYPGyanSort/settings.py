@@ -24,7 +24,7 @@ ALLOWED_HOSTS = ['*']
 # Application definition
 
 INSTALLED_APPS = [
-    'jet',
+    'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -32,9 +32,17 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'storages',
-    
 ]
 
+# Add Jazzmin settings
+JAZZMIN_SETTINGS = {
+    "site_title": "GyanSort Admin",
+    "site_header": "GyanSort",
+    "site_brand": "GyanSort",
+    "welcome_sign": "Welcome to GyanSort Admin",
+    "copyright": "GyanSort"
+}
+    
 EXTERNAL_APPS =[
     'corsheaders',
     'rest_framework',
@@ -52,7 +60,8 @@ INSTALLED_APPS += EXTERNAL_APPS  # Now INSTALLED_APPS contains both internal and
 
 
  
-AUTH_USER_MODEL = "students.Student"
+# AUTH_USER_MODEL = "students.Student"
+AUTH_USER_MODEL = "instructors.Instructor"
 
  
 REST_FRAMEWORK = {
@@ -203,8 +212,8 @@ STATICFILES_DIRS = [
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',  
     'FYPGyanSort.auth_backends.MultiModelBackend',
-    'django.contrib.auth.backends.ModelBackend',
 ]
 
 # Add JWT settings
@@ -250,15 +259,19 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 
-# for file storages 
-DEFAULT_FILE_STORAGE = 'storages.backends.S3boto3Storage'
 
 # AWS Settings
+# AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+# AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+# AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
+# AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME')
+# AWS_CLOUDFRONT_DOMAIN = 'd7yzmscn4bto5.cloudfront.net'
+
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_KEY')
-AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_BUCKET_NAME')
-AWS_S3_REGION_NAME = os.getenv('AWS_REGION')
-AWS_CLOUDFRONT_DOMAIN = 'd7yzmscn4bto5.cloudfront.net'
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
+AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME')
+CLOUDFRONT_DOMAIN = "d7yzmscn4bto5.cloudfront.net"
 
 # S3 file storage settings
 DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
@@ -269,7 +282,25 @@ AWS_S3_OBJECT_PARAMETERS = {
 }
 
 
+
 # Khalti Payment Settings
 KHALTI_SECRET_KEY = os.getenv('KHALTI_SECRET_KEY')
 KHALTI_PUBLIC_KEY = os.getenv('KHALTI_PUBLIC_KEY') 
 KHALTI_API_URL = os.getenv('KHALTI_API_URL')
+
+
+# Add these Jet settings
+JET_SIDE_MENU_COMPACT = True
+JET_DEFAULT_THEME = 'light-gray'
+JET_THEMES = [
+    {
+        'theme': 'default',
+        'color': '#47bac1',
+        'title': 'Default'
+    },
+    {
+        'theme': 'light-gray',
+        'color': '#222',
+        'title': 'Light Gray'
+    }
+]

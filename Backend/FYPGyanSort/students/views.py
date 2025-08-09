@@ -10,14 +10,14 @@ from .models import Student
 from django.utils.html import strip_tags
 from django.core.mail import EmailMultiAlternatives
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from .serializers import LogoutSerializer
+from .serializers import LogoutSerializer, StudentRegistrationSerializer as RegisterSerializer, StudentLoginSerializer
 import urllib.parse
 import traceback
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
- 
-from .serializers import StudentRegistrationSerializer as RegisterSerializer, StudentLoginSerializer as LoginSerializer, StudentProfileSerializer as StudentSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth import get_user_model
 
 class RegisterView(APIView):
     def post(self, request):
@@ -25,12 +25,19 @@ class RegisterView(APIView):
         print("serializer:", serializer.is_valid())
         if serializer.is_valid():
             user = serializer.save()
-            # Convert token to string explicitly
-            token = str(RefreshToken.for_user(user).access_token)
             
-            # Update verification URL to match the backend endpoint
-            verification_url = f"http://localhost:8000/api/students/verify-email/{token}/"
-
+            # Create a custom token for email verification
+            from django.contrib.auth.tokens import default_token_generator
+            from django.utils.http import urlsafe_base64_encode
+            from django.utils.encoding import force_bytes
+            
+            # Generate verification token
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            token = default_token_generator.make_token(user)
+            
+            # Create verification URL
+            verification_url = f"http://localhost:8000/api/students/verify-email/{uid}/{token}/"
+            
             # Create HTML email with button
             html_content = f"""
             <html>
@@ -92,7 +99,10 @@ class RegisterView(APIView):
             # Send the email
             email.send()
             
-            return Response({"message": "User registered. Check email for verification"}, status=status.HTTP_201_CREATED)
+            return Response({
+                'message': 'Registration successful. Please check your email for verification.',
+                'email': user.email
+            }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class VerifyEmail(APIView):
@@ -155,29 +165,25 @@ class VerifyEmail(APIView):
                 'message': 'Verification failed. Please try again or contact support.'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-class LoginView(APIView):
+class StudentLoginView(APIView):
     def post(self, request):
-        serializer = LoginSerializer(data=request.data)
+        serializer = StudentLoginSerializer(data=request.data)
         if serializer.is_valid():
-            user = authenticate(email=serializer.validated_data["email"], password=serializer.validated_data["password"])
-            if user:
-                if not user.is_active:
-                    return Response({"error": "Account is not active"}, status=status.HTTP_403_FORBIDDEN)
-                if not user.email_verified:
-                    return Response({"error": "Email not verified"}, status=status.HTTP_403_FORBIDDEN)
-                token = RefreshToken.for_user(user)
-                return Response({
-                    "access": str(token.access_token), 
-                    "refresh": str(token),
-                    "user": {
-                        "id": user.id,
-                        "email": user.email,
-                        "fullname": user.fullname,
-                        "student_id": user.student_id,
-                        "verification_status": user.verification_status
-                    }
-                }, status=status.HTTP_200_OK)
-            return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+            email = serializer.validated_data['email']
+            password = serializer.validated_data['password']
+            
+            try:
+                student = Student.objects.get(email=email)
+                if student.check_password(password):
+                    refresh = RefreshToken.for_user(student)
+                    return Response({
+                        'refresh': str(refresh),
+                        'access': str(refresh.access_token),
+                    })
+                else:
+                    return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+            except Student.DoesNotExist:
+                return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class ProfileView(APIView):

@@ -3,6 +3,18 @@ from django.core.validators import FileExtensionValidator, MinValueValidator
 from django.core.exceptions import ValidationError
 from instructors.models import Instructor
 from decimal import Decimal
+from .storage_backends import CourseVideoS3Storage
+from django.core.files.storage import FileSystemStorage
+from django.conf import settings
+
+local_storage = FileSystemStorage()
+s3_video_storage = CourseVideoS3Storage()
+
+def content_upload_to(instance, filename):
+    # Optional: different upload paths for different content types
+    if instance.content_type == 'video':
+        return f'course_content_videos/{filename}'
+    return f'content/{filename}'
 
 def validate_file_size(value):
     if 'image' in value.content_type:
@@ -185,8 +197,8 @@ class Content(models.Model):
     lesson = models.ForeignKey(Lesson, related_name='contents', on_delete=models.CASCADE)
     title = models.CharField(max_length=200)
     content_type = models.CharField(max_length=20, choices=CONTENT_TYPES)
-    file = models.FileField(upload_to='course_content/', blank=True, null=True)
-    cloudfront_url = models.URLField(blank=True, null=True)
+    file = models.FileField(upload_to=content_upload_to, blank=True, null=True)
+    # Remove cloudfront_url from DB if you don't need to store it. If you do, keep it but don't update it in save().
     text_content = models.TextField(blank=True)
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -199,8 +211,16 @@ class Content(models.Model):
         return self.title
 
     def save(self, *args, **kwargs):
+        if self.file:
+            if self.content_type == 'video':
+                self.file.storage = s3_video_storage
+            else:
+                self.file.storage = local_storage
         super().save(*args, **kwargs)
-        # Save the file URL to cloudfront_url if not already set and file exists
-        if self.file and (not self.cloudfront_url or self.cloudfront_url != self.file.url):
-            self.cloudfront_url = self.file.url
-            super().save(update_fields=['cloudfront_url'])
+
+    @property
+    def cloudfront_url(self):
+        """Dynamically generate the CloudFront URL for this file if present."""
+        if self.file and self.file.name:
+            return f"https://{settings.CLOUDFRONT_DOMAIN}/{self.file.name.lstrip('/')}"
+        return None
