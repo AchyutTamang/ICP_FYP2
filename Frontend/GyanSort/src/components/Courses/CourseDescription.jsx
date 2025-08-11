@@ -143,6 +143,7 @@ const CourseDescription = () => {
         );
 
         if (response.data) {
+          console.log('Course data:', response.data); // Add this to debug
           setCourse(response.data);
         }
       } catch (error) {
@@ -241,31 +242,23 @@ const CourseDescription = () => {
               <div className="flex items-center space-x-4 mb-4">
                 <div className="relative w-16 h-16 rounded-full overflow-hidden bg-gray-700">
                   <img
-                    src={
-                      course?.instructor?.profile_picture ||
-                      "/default-avatar.png"
-                    }
-                    alt={course?.instructor?.name || "Instructor"}
+                    src="/default-avatar.png"
+                    alt={course?.instructor_name || "Instructor"}
                     className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.src = "/default-avatar.png";
-                    }}
                   />
                 </div>
                 <div>
                   <h3 className="text-white text-xl font-semibold">
-                    {course?.instructor?.name || "Instructor Name"}
+                    {course?.instructor_name || "Instructor Name"}
                   </h3>
-                  <p className="text-gray-400">
-                    {course?.instructor?.title || "Course Instructor"}
-                  </p>
+                  <p className="text-gray-400">Course Instructor</p>
                 </div>
               </div>
-              {course?.instructor?.bio && (
-                <p className="text-gray-300 text-sm mt-2 border-t border-gray-700 pt-4">
-                  {course.instructor.bio}
-                </p>
-              )}
+            </div>
+
+            {/* Price Display */}
+            <div className="text-3xl font-bold text-[#00FF40] bg-gray-800 p-4 rounded-lg">
+              Rs. {(course?.course_price || 0).toLocaleString()}
             </div>
 
             {/* Rating Display */}
