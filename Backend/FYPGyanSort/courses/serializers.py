@@ -169,7 +169,7 @@ class CourseSerializer(serializers.ModelSerializer):
         return obj.category.name if obj.category else None
     
     def get_instructor_name(self, obj):
-        return obj.instructor.user.get_full_name() if obj.instructor and hasattr(obj.instructor, 'user') else None
+        return obj.instructor.fullname if obj.instructor else None
     
     def get_display_price(self, obj):
         if obj.is_free or obj.course_price == 0:

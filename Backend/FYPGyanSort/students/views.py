@@ -10,7 +10,10 @@ from .models import Student
 from django.utils.html import strip_tags
 from django.core.mail import EmailMultiAlternatives
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from .serializers import LogoutSerializer, StudentRegistrationSerializer as RegisterSerializer, StudentLoginSerializer
+from .serializers import (LogoutSerializer, 
+                         StudentRegistrationSerializer as RegisterSerializer, 
+                         StudentLoginSerializer,
+                         StudentProfileSerializer)  
 import urllib.parse
 import traceback
 from django.contrib.auth.tokens import default_token_generator
@@ -155,6 +158,11 @@ class StudentLoginView(APIView):
             try:
                 student = Student.objects.get(email=email)
                 if student.check_password(password):
+                    # Activate the user if not already active
+                    if not student.is_active:
+                        student.is_active = True
+                        student.save()
+                    
                     # Create token payload
                     token = RefreshToken()
                     token['user_id'] = student.id
@@ -172,14 +180,19 @@ class StudentLoginView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class ProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+    
     def get(self, request):
         user = request.user
-        serializer = StudentSerializer(user)
+        if not isinstance(user, Student):
+            return Response({"error": "Invalid user type"}, status=status.HTTP_401_UNAUTHORIZED)
+            
+        serializer = StudentProfileSerializer(user)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     def put(self, request):
         user = request.user
-        serializer = StudentSerializer(user, data=request.data, partial=True)
+        serializer = StudentProfileSerializer(user, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
