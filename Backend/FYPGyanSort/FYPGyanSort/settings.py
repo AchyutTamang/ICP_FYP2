@@ -283,10 +283,11 @@ AWS_S3_OBJECT_PARAMETERS = {
 
 
 
-# Khalti Payment Settings
+# Khalti Settings
+# Khalti Settings
 KHALTI_SECRET_KEY = os.getenv('KHALTI_SECRET_KEY')
-KHALTI_PUBLIC_KEY = os.getenv('KHALTI_PUBLIC_KEY') 
-KHALTI_API_URL = os.getenv('KHALTI_API_URL')
+KHALTI_PUBLIC_KEY = os.getenv('KHALTI_PUBLIC_KEY')
+KHALTI_API_URL = os.getenv('KHALTI_API_URL', 'https://khalti.com/api/v2')
 
 
 # Add these Jet settings

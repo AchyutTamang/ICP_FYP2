@@ -272,6 +272,7 @@ function App() {
             element={<ResetPassword />}
           />
         </Routes>
+        
       </CartProvider>
     </>
   );

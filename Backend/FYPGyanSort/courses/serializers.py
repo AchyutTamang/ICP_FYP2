@@ -146,13 +146,21 @@ class CourseDetailSerializer(serializers.ModelSerializer):
     modules = ModuleSerializer(many=True, read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
     instructor_name = serializers.CharField(source='instructor.fullname', read_only=True)
+    instructor_profile_picture = serializers.SerializerMethodField()
     
     class Meta:
         model = Course
-        fields = ['id', 'title', 'instructor', 'instructor_name', 'category', 
-                 'category_name', 'course_price', 'description', 'course_thumbnail', 
+        fields = ['id', 'title', 'instructor', 'instructor_name', 'instructor_profile_picture',
+                 'category', 'category_name', 'course_price', 'description', 'course_thumbnail', 
                  'demo_video', 'reviews', 'modules', 'is_active', 'created_at', 'updated_at']
-
+    
+    def get_instructor_profile_picture(self, obj):
+        if obj.instructor and obj.instructor.profile_picture:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.instructor.profile_picture.url)
+            return obj.instructor.profile_picture.url
+        return None
 
 class CourseSerializer(serializers.ModelSerializer):
     category_name = serializers.SerializerMethodField()
@@ -191,14 +199,3 @@ class ModuleSerializer(serializers.ModelSerializer):
         model = Module
         fields = ['id', 'course', 'title', 'description', 'order', 
                  'lessons', 'created_at', 'updated_at']
-
-class CourseDetailSerializer(serializers.ModelSerializer):
-    modules = ModuleSerializer(many=True, read_only=True)
-    category_name = serializers.CharField(source='category.name', read_only=True)
-    instructor_name = serializers.CharField(source='instructor.fullname', read_only=True)
-    
-    class Meta:
-        model = Course
-        fields = ['id', 'title', 'instructor', 'instructor_name', 'category', 
-                 'category_name', 'course_price', 'description', 'course_thumbnail', 
-                 'demo_video', 'reviews', 'modules', 'is_active', 'created_at', 'updated_at']

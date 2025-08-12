@@ -184,11 +184,11 @@ const CourseDescription = () => {
     <div className="flex items-center space-x-4 mb-4">
       <div className="relative w-16 h-16 rounded-full overflow-hidden bg-gray-700">
         <img
-          src={course?.instructor?.profile_picture || "/default-avatar.png"}
+          src={course?.instructor?.profile_picture || "/gyansort-logo.png"}
           alt={course?.instructor?.name || "Instructor"}
           className="w-full h-full object-cover"
           onError={(e) => {
-            e.target.src = "/default-avatar.png";
+            e.target.src = "/gyansort-logo.png";
           }}
         />
       </div>
@@ -232,23 +232,24 @@ const CourseDescription = () => {
             <h1 className="text-4xl font-bold text-white">{course?.title}</h1>
             <p className="text-lg text-gray-300">{course?.description}</p>
 
-            {/* Price - Updated format */}
-            <div className="text-3xl font-bold text-[#00FF40] bg-gray-800 p-4 rounded-lg">
-              Rs. {(course?.price || 0).toLocaleString()}
-            </div>
-
-            {/* Instructor Info - Updated layout */}
-            <div className="bg-gray-800 p-6 rounded-lg">
+            {/* Instructor Info */}
+            <div
+              className="bg-gray-800 p-6 rounded-lg cursor-pointer"
+              onClick={() => navigateToInstructorProfile(course?.instructor)}
+            >
               <div className="flex items-center space-x-4 mb-4">
                 <div className="relative w-16 h-16 rounded-full overflow-hidden bg-gray-700">
                   <img
-                    src="/default-avatar.png"
+                    src={course?.instructor_profile_picture || "/gyansort-logo.png"}
                     alt={course?.instructor_name || "Instructor"}
                     className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.src = "/gyansort-logo.png";
+                    }}
                   />
                 </div>
                 <div>
-                  <h3 className="text-white text-xl font-semibold">
+                  <h3 className="text-white text-xl font-semibold hover:text-[#00FF40]">
                     {course?.instructor_name || "Instructor Name"}
                   </h3>
                   <p className="text-gray-400">Course Instructor</p>

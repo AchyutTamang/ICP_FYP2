@@ -4,6 +4,7 @@ import { toast } from "react-toastify";
 import Navbar from "../stick/Navbar";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate, useParams } from "react-router-dom";
+import KhaltiPayment from "../Payment/KhaltiPayment";
 
 const PaymentPage = () => {
   const [order, setOrder] = useState(null);
@@ -192,6 +193,17 @@ const PaymentPage = () => {
                     <label className="flex items-center text-white">
                       <input
                         type="radio"
+                        value="khalti"
+                        checked={paymentMethod === "khalti"}
+                        onChange={() => setPaymentMethod("khalti")}
+                        className="mr-2"
+                      />
+                      Khalti
+                    </label>
+
+                    <label className="flex items-center text-white">
+                      <input
+                        type="radio"
                         value="paypal"
                         checked={paymentMethod === "paypal"}
                         onChange={() => setPaymentMethod("paypal")}
@@ -202,6 +214,7 @@ const PaymentPage = () => {
                   </div>
                 </div>
 
+                {/* Render payment form based on selected method */}
                 {paymentMethod === "credit_card" && (
                   <div className="space-y-4">
                     <div>
@@ -267,6 +280,18 @@ const PaymentPage = () => {
                       </div>
                     </div>
                   </div>
+                )}
+
+                {paymentMethod === "khalti" && (
+                  <KhaltiPayment
+                    amount={order.total_amount * 100} // Convert to paisa
+                    productName={order.items
+                      .map((item) => item.course.title)
+                      .join(", ")}
+                    description={`Payment for course(s): ${order.items
+                      .map((item) => item.course.title)
+                      .join(", ")}`}
+                  />
                 )}
 
                 {paymentMethod === "paypal" && (
