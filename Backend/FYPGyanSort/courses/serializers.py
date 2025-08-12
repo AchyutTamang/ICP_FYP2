@@ -62,16 +62,16 @@ class ContentSerializer(serializers.ModelSerializer):
         model = Content
         fields = ['id', 'lesson', 'title', 'content_type', 'file', 'cloudfront_url', 
                  'text_content', 'order', 'created_at', 'updated_at']
+        read_only_fields = ['cloudfront_url']  # Mark as read-only
     
     def create(self, validated_data):
         file = validated_data.get('file')
         content_type = validated_data.get('content_type')
         
-        # If this is a video file, upload to S3
+        # If this is a video file, ensure it's using the correct storage
         if file and content_type in ['video', 'mp4', 'webm']:
-            s3_url = self.upload_to_s3(file)
-            if s3_url:
-                validated_data['cloudfront_url'] = s3_url
+            # The storage will be handled by the model's save method
+            pass
         
         return super().create(validated_data)
     
@@ -79,11 +79,10 @@ class ContentSerializer(serializers.ModelSerializer):
         file = validated_data.get('file')
         content_type = validated_data.get('content_type')
         
-        # If this is a video file and it's changed, upload to S3
+        # If this is a video file, ensure it's using the correct storage
         if file and content_type in ['video', 'mp4', 'webm']:
-            s3_url = self.upload_to_s3(file)
-            if s3_url:
-                validated_data['cloudfront_url'] = s3_url
+            # The storage will be handled by the model's save method
+            pass
         
         return super().update(instance, validated_data)
     
@@ -102,26 +101,17 @@ class ContentSerializer(serializers.ModelSerializer):
                 region_name=settings.AWS_S3_REGION_NAME
             )
             
-            # Upload file to S3
+            # Upload file to S3 without ACL
             s3_client.upload_fileobj(
                 file,
                 settings.AWS_STORAGE_BUCKET_NAME,
                 s3_path,
                 ExtraArgs={
-                    'ContentType': file.content_type,
-                    'ACL': 'public-read'
+                    'ContentType': file.content_type
                 }
             )
             
-            # Return the S3 URL
-            if hasattr(settings, 'AWS_CLOUDFRONT_DOMAIN') and settings.AWS_CLOUDFRONT_DOMAIN:
-                return f"https://{settings.AWS_CLOUDFRONT_DOMAIN}/{s3_path}"
-            else:
-                return f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com/{s3_path}"
-                
-        except NoCredentialsError:
-            print("AWS credentials not available")
-            return None
+            return f"https://{settings.CLOUDFRONT_DOMAIN}/{s3_path}"
         except Exception as e:
             print(f"Error uploading to S3: {str(e)}")
             return None

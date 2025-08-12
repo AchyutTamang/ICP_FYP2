@@ -22,7 +22,7 @@ const CourseDescription = () => {
   const [expandedSection, setExpandedSection] = useState("introduction");
   const [userRating, setUserRating] = useState(0);
   const [userReview, setUserReview] = useState("");
-
+  const [expandedLesson, setExpandedLesson] = useState(null);
   const handleAddToCart = async () => {
     if (!isAuthenticated) {
       toast.error("Please login to add courses to cart");
@@ -134,7 +134,7 @@ const CourseDescription = () => {
       try {
         const headers = {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("access_token")}`
+          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
         };
 
         const response = await axios.get(
@@ -143,7 +143,7 @@ const CourseDescription = () => {
         );
 
         if (response.data) {
-          console.log('Course data:', response.data); // Add this to debug
+          console.log("Course data:", response.data); // Add this to debug
           setCourse(response.data);
         }
       } catch (error) {
@@ -160,10 +160,10 @@ const CourseDescription = () => {
   // Add cleanup for video
   useEffect(() => {
     return () => {
-      const video = document.querySelector('video');
+      const video = document.querySelector("video");
       if (video) {
         video.pause();
-        video.src = '';
+        video.src = "";
         video.load();
       }
     };
@@ -240,7 +240,9 @@ const CourseDescription = () => {
               <div className="flex items-center space-x-4 mb-4">
                 <div className="relative w-16 h-16 rounded-full overflow-hidden bg-gray-700">
                   <img
-                    src={course?.instructor_profile_picture || "/gyansort-logo.png"}
+                    src={
+                      course?.instructor_profile_picture || "/gyansort-logo.png"
+                    }
                     alt={course?.instructor_name || "Instructor"}
                     className="w-full h-full object-cover"
                     onError={(e) => {
@@ -322,10 +324,10 @@ const CourseDescription = () => {
             {course?.modules?.map((module, index) => (
               <div
                 key={module.id}
-                className="border border-gray-700 rounded-lg"
+                className="border border-gray-700 rounded-lg overflow-hidden mb-4 hover:border-[#00FF40] transition-colors"
               >
                 <button
-                  className="w-full px-6 py-4 flex justify-between items-center text-white hover:bg-gray-700 rounded-lg transition-colors"
+                  className="w-full px-6 py-4 flex justify-between items-center text-white hover:bg-gray-700/50 transition-all"
                   onClick={() =>
                     setExpandedSection(
                       expandedSection === module.id ? null : module.id
@@ -333,34 +335,61 @@ const CourseDescription = () => {
                   }
                 >
                   <div className="flex items-center gap-3">
-                    <span className="text-[#00FF40] font-medium">
+                    <span className="text-[#00FF40] font-medium bg-[#00FF40]/10 px-3 py-1 rounded-full text-sm">
                       Module {index + 1}
                     </span>
-                    <span className="text-lg">{module.title}</span>
+                    <span className="text-lg font-medium">{module.title}</span>
                   </div>
                   {expandedSection === module.id ? (
-                    <FaChevronUp />
+                    <FaChevronUp className="text-[#00FF40] transition-transform duration-200" />
                   ) : (
-                    <FaChevronDown />
+                    <FaChevronDown className="text-[#00FF40] transition-transform duration-200" />
                   )}
                 </button>
                 {expandedSection === module.id && (
-                  <div className="px-6 py-3 border-t border-gray-700">
-                    {module.lessons?.map((lesson) => (
-                      <div
-                        key={lesson.id}
-                        className="flex items-center gap-3 py-3 text-gray-300 hover-text-white"
-                      >
-                        <FaPlay className="text-sm text-[#00FF40]" />
-                        <div>
-                          <p className="font-medium">{lesson.title}</p>
-                          <div className="flex gap-2 text-sm text-gray-400">
-                            {lesson.video && <span>Video</span>}
-                            {lesson.pdf && <span>PDF</span>}
+                  <div className="border-t border-gray-700">
+                    <p className="text-gray-400 px-6 py-3 bg-gray-800/30 italic">
+                      {module.description}
+                    </p>
+                    <div className="divide-y divide-gray-700/50">
+                      {module.lessons?.map((lesson, lessonIndex) => (
+                        <div key={lesson.id} className="bg-gray-800/20">
+                          <div
+                            className="px-6 py-4 cursor-pointer hover:bg-gray-700/30 transition-colors"
+                            onClick={() => setExpandedLesson(expandedLesson === lesson.id ? null : lesson.id)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <span className="text-gray-400 text-sm">Lesson {lessonIndex + 1}</span>
+                                <h3 className="font-medium text-white">{lesson.title}</h3>
+                              </div>
+                              {expandedLesson === lesson.id ? (
+                                <FaChevronUp className="text-gray-400 text-sm" />
+                              ) : (
+                                <FaChevronDown className="text-gray-400 text-sm" />
+                              )}
+                            </div>
                           </div>
+                          {expandedLesson === lesson.id && (
+                            <div className="px-6 pb-4">
+                              <p className="text-gray-400 text-sm mb-3 ml-6">{lesson.description}</p>
+                              <div className="space-y-2 ml-6">
+                                {lesson.contents?.map((content, contentIndex) => (
+                                  <div
+                                    key={content.id}
+                                    className="flex items-center gap-3 text-gray-300 hover:text-[#00FF40] transition-colors"
+                                  >
+                                    <FaPlay className="text-xs" />
+                                    <span className="text-sm">{content.title}</span>
+                                    <span className="text-xs text-gray-500 ml-auto">{content.content_type}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

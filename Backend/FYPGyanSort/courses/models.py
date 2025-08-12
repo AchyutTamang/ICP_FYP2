@@ -197,8 +197,7 @@ class Content(models.Model):
     lesson = models.ForeignKey(Lesson, related_name='contents', on_delete=models.CASCADE)
     title = models.CharField(max_length=200)
     content_type = models.CharField(max_length=20, choices=CONTENT_TYPES)
-    file = models.FileField(upload_to=content_upload_to, blank=True, null=True)
-    # Remove cloudfront_url from DB if you don't need to store it. If you do, keep it but don't update it in save().
+    file = models.FileField(upload_to='content/', null=True, blank=True)
     text_content = models.TextField(blank=True)
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -213,8 +212,10 @@ class Content(models.Model):
     def save(self, *args, **kwargs):
         if self.file:
             if self.content_type == 'video':
+                # Use S3 storage for video files
                 self.file.storage = s3_video_storage
             else:
+                # Use local storage for other files
                 self.file.storage = local_storage
         super().save(*args, **kwargs)
 
