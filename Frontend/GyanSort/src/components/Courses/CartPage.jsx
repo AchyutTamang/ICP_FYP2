@@ -5,8 +5,7 @@ import Navbar from "../stick/Navbar";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
-import KhaltiCheckout from "khalti-checkout-web";
+import KhaltiPayment from "../Payment/KhaltiPayment";
 
 const CartPage = () => {
   const { cartItems, removeFromCart, fetchCartItems, addToFavorites } =
@@ -54,58 +53,6 @@ const CartPage = () => {
     else if (result.error === "Course already in favorites")
       toast.info("Already in favorites");
     else toast.error(result.error || "Failed to add to favorites");
-  };
-
-  // Khalti widget-based checkout
-  const handleCheckout = async () => {
-    if (!user) {
-      toast.error("Please login to proceed.");
-      return;
-    }
-    const config = {
-      publicKey: "test_public_key_dc74b9a8d8c94a4ca9b6d8a2b68b1cb7", // <-- Replace with your actual key!
-      productIdentity: Date.now().toString(),
-      productName: "GyanSort Courses",
-      productUrl: window.location.origin,
-      amount: Math.round(totalPrice * 100), // paisa
-      eventHandler: {
-        onSuccess: async (payload) => {
-          try {
-            const verifyRes = await axios.post(
-              "http://localhost:8000/api/payments/payments/verify-khalti/",
-              { pidx: payload.pidx },
-              {
-                headers: {
-                  Authorization: `Bearer ${localStorage.getItem(
-                    "access_token"
-                  )}`,
-                },
-              }
-            );
-            if (verifyRes.data.success) navigate(`/payment-status/success`);
-            else navigate(`/payment-status/failure`);
-          } catch (error) {
-            navigate(`/payment-status/failure`);
-          }
-        },
-        onError: (error) => {
-          toast.error("Payment failed. Try again.");
-          navigate(`/payment-status/failure`);
-        },
-        onClose: () => {
-          // Optionally handle widget close
-        },
-      },
-      paymentPreference: [
-        "KHALTI",
-        "EBANKING",
-        "MOBILE_BANKING",
-        "CONNECT_IPS",
-        "SCT",
-      ],
-    };
-    let checkout = new KhaltiCheckout(config);
-    checkout.show({ amount: Math.round(totalPrice * 100) });
   };
 
   return (
@@ -188,12 +135,11 @@ const CartPage = () => {
                     RS {totalPrice}
                   </span>
                 </div>
-                <button
-                  onClick={handleCheckout}
-                  className="bg-[#00FF40] hover:bg-[#00DD30] text-black font-bold py-2 px-6 rounded-md transition duration-300"
-                >
-                  Proceed to Checkout
-                </button>
+                <KhaltiPayment
+                  amount={Math.round(totalPrice * 100)}
+                  productName="GyanSort Courses"
+                  description="Purchase from GyanSort"
+                />
               </div>
             </div>
           </div>

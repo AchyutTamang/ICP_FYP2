@@ -34,6 +34,8 @@ import InstructorDashboard from "./pages/instructor/InstructorDashboard";
 import CategoryManagement from "./pages/instructor/CategoryManagement";
 import CourseDescription from "./components/Courses/CourseDescription";
 import ForumGroup from "./components/Forum/ForumGroup";
+import PaymentSuccess from "./components/payment/PaymentSuccess";
+
 
 // Debug component to help diagnose routing issues
 const RouteDebugger = () => {
@@ -145,6 +147,7 @@ function App() {
             path="/InstructorHome"
             element={<Navigate to="/instructor" replace />}
           />
+          <Route path="/payment/success" element={<PaymentSuccess />} />
           <Route path="/courses" element={<CoursesPage />} />
           <Route
             path="/cart"

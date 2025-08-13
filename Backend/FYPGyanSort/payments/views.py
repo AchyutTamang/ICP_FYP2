@@ -1,157 +1,116 @@
-import uuid
 import requests
-import json
 from django.conf import settings
-from django.shortcuts import redirect
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from .models import Payment
-from .serializers import PaymentSerializer, PaymentInitiateSerializer, PaymentVerifySerializer
+from rest_framework.response import Response
 
-class PaymentViewSet(viewsets.ModelViewSet):
-    queryset = Payment.objects.all()
-    serializer_class = PaymentSerializer
-    permission_classes = [IsAuthenticated]
-    
-    def get_queryset(self):
-        user = self.request.user
-        
-        # Filter payments by user email
-        return Payment.objects.filter(user_email=user.email).order_by('-created_at')
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def initiate_khalti_payment(request):
+    """
+    Initiates Khalti payment.
+    Expects: amount, product_name, description, return_url in request.data
+    """
+    print("Khalti Secret Key being used for API call:", settings.KHALTI_SECRET_KEY)
 
-    
-    @action(detail=False, methods=['post'], url_path='initiate-khalti')
-    def initiate_khalti_payment(self, request):
-        serializer = PaymentInitiateSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-        user = request.user
-        
-        # Generate a unique transaction ID
-        transaction_id = f"GS-{uuid.uuid4().hex[:8].upper()}"
-        
-        # Convert amount to paisa (1 NPR = 100 paisa)
-        amount_in_paisa = int(float(serializer.validated_data['amount']) * 100)
-        
-        # Prepare Khalti payment data
-        khalti_data = {
-            "return_url": request.data.get('return_url', f"{settings.FRONTEND_URL}/payment/success"),
-            "website_url": settings.FRONTEND_URL,
-            "amount": amount_in_paisa,
-            "purchase_order_id": transaction_id,
-            "purchase_order_name": serializer.validated_data.get('product_name', 'GyanSort Course'),
+    try:
+        amount = int(request.data.get('amount'))
+        product_name = request.data.get('product_name')
+        description = request.data.get('description', '')
+        return_url = request.data.get('return_url')
+        website_url = getattr(settings, "FRONTEND_URL", "http://localhost:5173")
+
+        # Basic validation
+        if not all([amount, product_name, return_url]):
+            return Response({"error": "Missing required fields."}, status=400)
+
+        url = 'https://khalti.com/api/v2/epayment/initiate/'
+        payload = {
+            "return_url": return_url,
+            "website_url": website_url,
+            "amount": amount,
+            "purchase_order_id": f"{request.user.id}-{product_name}-{amount}",
+            "purchase_order_name": product_name,
             "customer_info": {
-                "name": user.get_full_name() if hasattr(user, 'get_full_name') else user.email,
-                "email": user.email,
-                "phone": request.data.get('phone', "9800000000")
-            }
+                "name": getattr(request.user, "fullname", request.user.email),
+                "email": request.user.email,
+            },
+            "amount_details": [
+                {
+                    "label": "Total",
+                    "amount": amount
+                }
+            ],
+            "product_details": [
+                {
+                    "identity": product_name,
+                    "name": product_name,
+                    "total_price": amount,
+                    "quantity": 1,
+                    "unit_price": amount,
+                    "description": description
+                }
+            ]
         }
-        
-        # Make request to Khalti API
         headers = {
-            'Authorization': f'Key {settings.KHALTI_SECRET_KEY}',
-            'Content-Type': 'application/json'
+            "Authorization": f"Key {settings.KHALTI_SECRET_KEY}",
+            "Content-Type": "application/json",
+            "X-Custom-Debug": "TestHeader"  # Optional custom header
         }
-        
-        try:
-            response = requests.post(
-                f"{settings.KHALTI_API_URL}/epayment/initiate/",
-                headers=headers,
-                json=khalti_data
-            )
-            
-            if response.status_code == 200:
-                response_data = response.json()
-                
-                # Create payment record
-                payment = Payment.objects.create(
-                    transaction_id=transaction_id,
-                    amount=serializer.validated_data['amount'],
-                    status='pending',
-                    payment_type='khalti',
-                    user_email=user.email,
-                    user_type='student' if hasattr(user, 'student') else 'instructor',
-                    user_id=user.id,
-                    product_name=serializer.validated_data.get('product_name', 'GyanSort Course'),
-                    description=serializer.validated_data.get('description', '')
-                )
-                
-                return Response({
-                    'payment_url': response_data['payment_url'],
-                    'pidx': response_data['pidx']
-                })
-            
-            return Response(
-                {'detail': 'Failed to initiate payment'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-            
-        except Exception as e:
-            return Response(
-                {'detail': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
 
-    #Verify Khalti payment
-    @action(detail=False, methods=['post'], url_path='verify-khalti')
-    def verify_khalti_payment(self, request):
-        serializer = PaymentVerifySerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-        pidx = serializer.validated_data['pidx']
-        
+        response = requests.post(url, json=payload, headers=headers)
+        print("Khalti API Response Status:", response.status_code)
+        print("Khalti API Response Body:", response.text)
+
         try:
-            payment = Payment.objects.get(pidx=pidx)
-            
-            # Make request to Khalti API to verify payment
-            headers = {
-                "Authorization": f"Key {settings.KHALTI_SECRET_KEY}"
-            }
-            
-            try:
-                response = requests.post(
-                    f"{settings.KHALTI_API_URL}/epayment/lookup/", 
-                    headers=headers,
-                    data={"pidx": pidx}
-                )
-                
-                response_data = response.json()
-                print(f"Khalti verification response: {response_data}")
-                
-                if response.status_code == 200 and response_data.get("status") == "Completed":
-                    # Update payment status to completed
-                    payment.status = 'completed'
-                    payment.save()
-                    
-                    return Response({
-                        "status": "success",
-                        "message": "Payment verified successfully",
-                        "payment": PaymentSerializer(payment).data
-                    }, status=status.HTTP_200_OK)
-                else:
-                    # Update payment status based on Khalti response
-                    payment.status = 'failed'
-                    payment.save()
-                    
-                    return Response({
-                        "status": "failed",
-                        "message": "Payment verification failed",
-                        "payment": PaymentSerializer(payment).data,
-                        "khalti_response": response_data
-                    }, status=status.HTTP_400_BAD_REQUEST)
-                    
-            except Exception as e:
-                print(f"Error verifying Khalti payment: {str(e)}")
-                return Response({
-                    "detail": f"Error verifying payment: {str(e)}"
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                
-        except Payment.DoesNotExist:
+            resp_data = response.json()
+        except Exception:
+            resp_data = {}
+
+        payment_url = resp_data.get("payment_url")
+        if payment_url:
             return Response({
-                "status": "error",
-                "message": "Payment not found"
-            }, status=status.HTTP_404_NOT_FOUND)
+                "payment_url": payment_url,
+                "raw_khalti_response": resp_data,
+            }, status=response.status_code)
+        else:
+            error_detail = resp_data.get("detail", "Khalti payment initiation failed.")
+            return Response({
+                "error": error_detail,
+                "raw_khalti_response": resp_data,
+            }, status=response.status_code)
+
+    except Exception as e:
+        print("Error in initiate_khalti_payment:", str(e))
+        return Response({"error": "Internal server error.", "detail": str(e)}, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def verify_khalti_payment(request):
+    """
+    Verifies Khalti payment.
+    Expects: pidx in request.data
+    """
+    try:
+        pidx = request.data.get('pidx')
+        if not pidx:
+            return Response({"error": "Missing pidx."}, status=400)
+        url = "https://khalti.com/api/v2/epayment/lookup/"
+        payload = { "pidx": pidx }
+        headers = {
+            "Authorization": f"Key {settings.KHALTI_SECRET_KEY}",
+            "Content-Type": "application/json",
+            "X-Custom-Debug": "TestHeader"  # Optional custom header
+        }
+        response = requests.post(url, json=payload, headers=headers)
+        print("Khalti Verify Response Status:", response.status_code)
+        print("Khalti Verify Response Body:", response.text)
+        try:
+            data = response.json()
+        except Exception:
+            data = {}
+        return Response(data, status=response.status_code)
+    except Exception as e:
+        print("Error in verify_khalti_payment:", str(e))
+        return Response({"error": "Internal server error.", "detail": str(e)}, status=500)

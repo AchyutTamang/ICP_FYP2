@@ -1,10 +1,7 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from .views import PaymentViewSet
-
-router = DefaultRouter()
-router.register(r'payments', PaymentViewSet)
+from django.urls import path
+from .views import initiate_khalti_payment, verify_khalti_payment
 
 urlpatterns = [
-    path('', include(router.urls)),
+    path("initiate-khalti/", initiate_khalti_payment, name="initiate-khalti"),
+    path("verify-khalti/", verify_khalti_payment, name="verify-khalti"),
 ]
