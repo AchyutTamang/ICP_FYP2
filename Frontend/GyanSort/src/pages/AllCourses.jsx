@@ -1,30 +1,36 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect } from "react";
 import Navbar from "../components/Stick/Navbar";
 import Footer from "../components/Stick/Footer";
 import styled from "@emotion/styled";
 import CourseCard from "../components/Courses/CourseCard";
 import { FaSearch, FaArrowRight, FaArrowLeft } from "react-icons/fa";
 import axios from "axios";
-import { CartContext } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
+import { useCart } from "../context/CartContext";
+import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
 
-// Styled Components (keep as before)
+// Styled Components
 const PageContainer = styled.div`
   min-height: 100vh;
   background-color: #1a2332;
   color: white;
 `;
+
 const ContentWrapper = styled.div`
   padding: 2rem;
   max-width: 1200px;
   margin: 0 auto;
   padding-top: 80px;
 `;
+
 const Header = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
 `;
+
 const SearchBar = styled.div`
   display: flex;
   align-items: center;
@@ -49,6 +55,7 @@ const SearchBar = styled.div`
     }
   }
 `;
+
 const FilterSection = styled.div`
   display: flex;
   gap: 1rem;
@@ -69,13 +76,18 @@ const FilterSection = styled.div`
     }
   }
 `;
+
 const CoursesGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 2rem;
   margin-bottom: 2rem;
   padding: 1rem;
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
 `;
+
 const SearchSection = styled.div`
   background: #1e2a3a;
   padding: 1.5rem;
@@ -83,6 +95,7 @@ const SearchSection = styled.div`
   margin-bottom: 2rem;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 `;
+
 const PaginationContainer = styled.div`
   display: flex;
   justify-content: center;
@@ -90,6 +103,7 @@ const PaginationContainer = styled.div`
   gap: 0.5rem;
   margin: 2rem 0;
 `;
+
 const PageButton = styled.button`
   background: ${(props) => (props.active ? "#00FF40" : "#1e2a3a")};
   color: ${(props) => (props.active ? "black" : "white")};
@@ -109,6 +123,22 @@ const PageButton = styled.button`
   }
 `;
 
+const LoadingSpinner = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+`;
+
+const ErrorMessage = styled.div`
+  text-align: center;
+  padding: 2rem;
+  color: #ff4040;
+  background: rgba(255, 64, 64, 0.1);
+  border-radius: 8px;
+  margin-top: 2rem;
+`;
+
 const AllCourses = () => {
   const [courses, setCourses] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -118,121 +148,109 @@ const AllCourses = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [coursesPerPage] = useState(9);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Local user state ONLY from localStorage
-  const [localUser, setLocalUser] = useState(null);
+  const { isAuthenticated, userRole } = useAuth();
+  const { addToCart } = useCart();
+  const navigate = useNavigate();
 
-  // CartContext only (no AuthContext confusion)
-  const { addToCart, addToFavorites } = useContext(CartContext) || {};
-
-  // On mount, get user from localStorage and NEVER overwrite again
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      try {
-        setLocalUser(JSON.parse(storedUser));
-      } catch (err) {
-        setLocalUser(null);
-      }
-    }
-  }, []);
-
-  // Categories
-  useEffect(() => {
-    async function fetchCategories() {
-      try {
-        const res = await axios.get(
-          "http://127.0.0.1:8000/api/courses/categories/"
-        );
-        setCategories(res.data);
-      } catch (err) {
-        setCategories([]);
-      }
-    }
-    fetchCategories();
-  }, []);
-
-  // Courses
-  useEffect(() => {
-    loadCourses();
-  }, []);
-
-  // Use localUser for role/auth
-  const isAuthenticated = !!localUser;
-  const userRole = localUser?.role;
-
-  // Add to Cart
-  const handleAddToCart = async (course) => {
-    if (!isAuthenticated) {
-      alert("Please login as a student to add courses to cart.");
-      return;
-    }
-    if (userRole !== "student") {
-      alert("Only students can add courses to cart.");
-      return;
-    }
+  // Fetch courses
+  const fetchCourses = async () => {
     try {
-      const result = await addToCart(course);
-      if (result?.success) {
-        alert("Course added to cart successfully!");
-      } else {
-        alert(result?.error || "Failed to add course to cart.");
-      }
-    } catch (error) {
-      alert(error.message || "Failed to add course to cart. Please try again.");
-    }
-  };
+      setLoading(true);
+      setError(null);
 
-  // Add to Favorites
-  const handleToggleFavorite = async (courseId) => {
-    if (!isAuthenticated) {
-      alert("Please login as a student to add courses to favorites.");
-      return;
-    }
-    if (userRole !== "student") {
-      alert("Only students can add favorites.");
-      return;
-    }
-    try {
-      const result = await addToFavorites(courseId);
-      if (result?.success) {
-        setCourses(
-          courses.map((course) =>
-            course.id === courseId
-              ? { ...course, isFavorite: !course.isFavorite }
-              : course
-          )
-        );
-      } else {
-        alert(result?.error || "Failed to update favorite status.");
-      }
-    } catch (error) {
-      alert(error.message || "Failed to update favorite status");
-    }
-  };
-
-  // Load courses
-  const loadCourses = async () => {
-    try {
       const response = await axios.get(
         "http://127.0.0.1:8000/api/courses/courses/"
       );
-      const formattedCourses = response.data.map((course) => ({
-        ...course,
-        display_price: course.is_free
-          ? "Free"
-          : typeof course.course_price === "number"
-          ? `Rs${course.course_price.toFixed(2)}`
-          : "Rs0.00",
-      }));
-      setCourses(formattedCourses);
-      setLoading(false);
-    } catch (error) {
+
+      if (Array.isArray(response.data)) {
+        const formattedCourses = response.data.map((course) => ({
+          ...course,
+          display_price: course.is_free
+            ? "Free"
+            : Number.isFinite(parseFloat(course.course_price))
+            ? `Rs${parseFloat(course.course_price).toFixed(2)}`
+            : "Rs0.00",
+        }));
+        setCourses(formattedCourses);
+      } else {
+        throw new Error("Invalid data format received from server");
+      }
+    } catch (err) {
+      console.error("Error fetching courses:", err);
+      setError("Failed to load courses. Please try again.");
+    } finally {
       setLoading(false);
     }
   };
 
-  // Filtering and pagination logic
+  // Fetch categories
+  const fetchCategories = async () => {
+    try {
+      const response = await axios.get(
+        "http://127.0.0.1:8000/api/courses/categories/"
+      );
+      if (Array.isArray(response.data)) {
+        setCategories(response.data);
+      }
+    } catch (err) {
+      console.error("Error fetching categories:", err);
+      toast.error("Failed to load categories");
+    }
+  };
+
+  // Initial data load
+  useEffect(() => {
+    fetchCourses();
+    fetchCategories();
+  }, []);
+
+  // Add to cart
+  const handleAddToCart = async (course) => {
+    if (!isAuthenticated) {
+      toast.warning("Please login as a student to add courses to cart");
+      return;
+    }
+
+    if (userRole !== "student") {
+      toast.warning("Only students can add courses to cart");
+      return;
+    }
+
+    try {
+      const result = await addToCart(course);
+      if (result?.success) {
+        toast.success("Course added to cart successfully!");
+      } else {
+        toast.error(result?.error || "Failed to add course to cart");
+      }
+    } catch (error) {
+      console.error("Cart error:", error);
+      toast.error("Failed to add course to cart");
+    }
+  };
+
+  // Add to favorites (implement if needed)
+  const handleAddToFavorites = async (courseId) => {
+    if (!isAuthenticated) {
+      toast.warning("Please login as a student to add to favorites");
+      return;
+    }
+
+    if (userRole !== "student") {
+      toast.warning("Only students can add favorites");
+      return;
+    }
+
+    try {
+      // Implement your logic here
+    } catch (error) {
+      toast.error("Failed to add to favorites");
+    }
+  };
+
+  // Robust category key getter
   const getCourseCategoryKey = (course) => {
     if (course.category_name) return course.category_name;
     if (typeof course.category === "string") return course.category;
@@ -244,6 +262,8 @@ const AllCourses = () => {
       return course.category.name;
     return "";
   };
+
+  // Filtering and pagination logic
   const getFilteredCourses = () => {
     return courses.filter((course) => {
       const searchTerm = searchQuery.toLowerCase().trim();
@@ -255,22 +275,27 @@ const AllCourses = () => {
       const courseCategoryKey = getCourseCategoryKey(course);
       const matchesCategory =
         category === "all" || courseCategoryKey === category;
+
       let matchesPrice = true;
       if (priceRange !== "all") {
         const [min, max] = priceRange.split("-").map(Number);
         const price = parseFloat(course.course_price) || 0;
-        if (priceRange === "10001-") {
-          matchesPrice = price > 10000;
+
+        if (priceRange === "0-0") {
+          matchesPrice = course.is_free === true;
+        } else if (priceRange === "10001-") {
+          matchesPrice = !course.is_free && price > 10000;
         } else {
-          matchesPrice = price >= min && price <= max;
-        }
-        if (course.is_free) {
-          matchesPrice = min === 0;
+          matchesPrice =
+            !course.is_free &&
+            price >= min &&
+            (typeof max === "number" && !isNaN(max) ? price <= max : true);
         }
       }
       return matchesSearch && matchesCategory && matchesPrice;
     });
   };
+
   const filteredCourses = getFilteredCourses();
   const indexOfLastCourse = currentPage * coursesPerPage;
   const indexOfFirstCourse = indexOfLastCourse - coursesPerPage;
@@ -280,19 +305,15 @@ const AllCourses = () => {
   );
   const totalPages = Math.ceil(filteredCourses.length / coursesPerPage);
 
-  // Debug logs for troubleshooting
-  useEffect(() => {
-    console.log("localUser:", localUser);
-    console.log("isAuthenticated:", isAuthenticated);
-    console.log("userRole:", userRole);
-  }, [localUser, isAuthenticated, userRole]);
-
   return (
     <PageContainer>
       <Navbar />
       <ContentWrapper>
         <Header>
           <h1>All Courses</h1>
+          {isAuthenticated && (
+            <div style={{ color: "#00FF40" }}>Welcome, {userRole}</div>
+          )}
         </Header>
 
         <SearchSection>
@@ -324,16 +345,21 @@ const AllCourses = () => {
               onChange={(e) => setPriceRange(e.target.value)}
             >
               <option value="all">All Prices</option>
-              <option value="0-1000">Rs 0 - Rs 1000</option>
-              <option value="1001-5000">Rs 1000 - Rs 5000</option>
-              <option value="5001-10000">Rs 5000- Rs 10000</option>
+              <option value="0-0">Free</option>
+              <option value="1-1000">Rs 0 - Rs 1000</option>
+              <option value="1001-5000">Rs 1001 - Rs 5000</option>
+              <option value="5001-10000">Rs 5001 - Rs 10000</option>
               <option value="10001-">Above Rs 10000</option>
             </select>
           </FilterSection>
         </SearchSection>
 
         {loading ? (
-          <div>Loading...</div>
+          <LoadingSpinner>Loading courses...</LoadingSpinner>
+        ) : error ? (
+          <ErrorMessage>{error}</ErrorMessage>
+        ) : currentCourses.length === 0 ? (
+          <ErrorMessage>No courses found matching your criteria.</ErrorMessage>
         ) : (
           <>
             <CoursesGrid>
@@ -342,36 +368,40 @@ const AllCourses = () => {
                   key={course.id}
                   course={course}
                   onAddToCart={() => handleAddToCart(course)}
-                  onAddToFavorites={() => handleToggleFavorite(course.id)}
+                  onAddToFavorites={() => handleAddToFavorites(course.id)}
                   isAuthenticated={isAuthenticated}
                   userRole={userRole}
                 />
               ))}
             </CoursesGrid>
 
-            <PaginationContainer>
-              <PageButton
-                onClick={() => setCurrentPage((prev) => prev - 1)}
-                disabled={currentPage === 1}
-              >
-                <FaArrowLeft />
-              </PageButton>
-              {[...Array(totalPages)].map((_, index) => (
+            {totalPages > 1 && (
+              <PaginationContainer>
                 <PageButton
-                  key={index + 1}
-                  active={currentPage === index + 1}
-                  onClick={() => setCurrentPage(index + 1)}
+                  onClick={() => setCurrentPage((prev) => prev - 1)}
+                  disabled={currentPage === 1}
                 >
-                  {index + 1}
+                  <FaArrowLeft />
                 </PageButton>
-              ))}
-              <PageButton
-                onClick={() => setCurrentPage((prev) => prev + 1)}
-                disabled={currentPage === totalPages}
-              >
-                <FaArrowRight />
-              </PageButton>
-            </PaginationContainer>
+
+                {[...Array(totalPages)].map((_, index) => (
+                  <PageButton
+                    key={index + 1}
+                    active={currentPage === index + 1}
+                    onClick={() => setCurrentPage(index + 1)}
+                  >
+                    {index + 1}
+                  </PageButton>
+                ))}
+
+                <PageButton
+                  onClick={() => setCurrentPage((prev) => prev + 1)}
+                  disabled={currentPage === totalPages}
+                >
+                  <FaArrowRight />
+                </PageButton>
+              </PaginationContainer>
+            )}
           </>
         )}
       </ContentWrapper>
