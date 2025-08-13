@@ -7,6 +7,8 @@ import { useCart } from "../../context/CartContext";
 import { useNavigate } from "react-router-dom";
 import KhaltiPayment from "../Payment/KhaltiPayment";
 
+const API_BASE_URL = "http://localhost:8000"; // Change to your backend URL if needed
+
 const CartPage = () => {
   const { cartItems, removeFromCart, fetchCartItems, addToFavorites } =
     useCart();
@@ -53,6 +55,49 @@ const CartPage = () => {
     else if (result.error === "Course already in favorites")
       toast.info("Already in favorites");
     else toast.error(result.error || "Failed to add to favorites");
+  };
+
+  // eSewa payment initiation with JWT from localStorage
+  const handleEsewaPay = async () => {
+    try {
+      if (cartItems.length === 0) {
+        toast.error("Your cart is empty");
+        return;
+      }
+      const productId = cartItems[0]?.course_details?.id || "gyansort-cart";
+      const token = localStorage.getItem("access_token"); // Get JWT token from localStorage
+      if (!token) {
+        toast.error("You must be logged in to proceed with payment.");
+        navigate("/login");
+        return;
+      }
+      const res = await fetch(`${API_BASE_URL}/api/payments/initiate-esewa/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          amount: totalPrice,
+          product_id: productId,
+        }),
+        credentials: "include",
+      });
+
+      console.log("eSewa API HTTP status:", res.status);
+
+      const data = await res.json();
+      console.log("Esewa API response:", data);
+
+      if (data.redirect_url) {
+        window.location.href = data.redirect_url;
+      } else {
+        toast.error(data.error || "Failed to initiate eSewa payment");
+      }
+    } catch (err) {
+      toast.error("Failed to initiate eSewa payment");
+      console.error(err);
+    }
   };
 
   return (
@@ -135,11 +180,25 @@ const CartPage = () => {
                     RS {totalPrice}
                   </span>
                 </div>
-                <KhaltiPayment
-                  amount={Math.round(totalPrice * 100)}
-                  productName="GyanSort Courses"
-                  description="Purchase from GyanSort"
-                />
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "1rem",
+                    justifyContent: "flex-end",
+                  }}
+                >
+                  <KhaltiPayment
+                    amount={Math.round(totalPrice * 100)}
+                    productName="GyanSort Courses"
+                    description="Purchase from GyanSort"
+                  />
+                  <button
+                    className="esewa-btn bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-md transition duration-300"
+                    onClick={handleEsewaPay}
+                  >
+                    Pay with eSewa
+                  </button>
+                </div>
               </div>
             </div>
           </div>

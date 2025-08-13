@@ -289,6 +289,10 @@ KHALTI_SECRET_KEY = os.getenv('KHALTI_SECRET_KEY')
 # KHALTI_PUBLIC_KEY = os.getenv('KHALTI_PUBLIC_KEY')
 # KHALTI_API_URL = os.getenv('KHALTI_API_URL', 'https://khalti.com/api/v2/')
 
+ESEWA_MERCHANT_CODE = "EPAYTEST"  # For testing; use your REAL code for production
+ESEWA_SECRET_KEY = "8gBm/&cEnhH.1/q"  # From Image 2, for UAT/testing
+ESEWA_SUCCESS_URL = "http://localhost:5173/payment/esewa-success"
+ESEWA_FAILURE_URL = "http://localhost:5173/payment/esewa-failure"
 
 # Add these Jet settings
 JET_SIDE_MENU_COMPACT = True
