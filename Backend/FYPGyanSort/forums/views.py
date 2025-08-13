@@ -477,11 +477,11 @@ class ForumParticipantViewSet(viewsets.ModelViewSet):
         try:
             forum = Forum.objects.get(id=forum_id)
             
-            # Instructors can see all participants of forums they created
+            # Instructors can see all ACTIVE participants of forums they created
             if hasattr(user, 'instructor') and forum.created_by == user.instructor:
-                return ForumMembership.objects.filter(forum=forum)
+                return ForumMembership.objects.filter(forum=forum, is_active=True)
             
-            # Students can see participants if they are members
+            # Students can see ACTIVE participants if they are members
             if hasattr(user, 'student') and forum.memberships.filter(student=user.student, is_active=True).exists():
                 return ForumMembership.objects.filter(forum=forum, is_active=True)
             

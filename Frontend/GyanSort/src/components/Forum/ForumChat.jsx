@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import forumService from "../../services/forumService";
@@ -11,7 +10,9 @@ const ForumChat = () => {
   const { user, userRole } = useAuth();
   const [forum, setForum] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [participants, setParticipants] = useState([]); // <-- NEW
   const [newMessage, setNewMessage] = useState("");
+  const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isForumMember, setIsForumMember] = useState(false);
   const [joinSuccess, setJoinSuccess] = useState(false);
@@ -19,136 +20,165 @@ const ForumChat = () => {
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
 
+  // Load forum details and membership
   useEffect(() => {
     const fetchForumDetails = async () => {
       try {
         const forumResponse = await forumService.getForumDetails(forumId);
-        setForum(forumResponse.data);
+        setForum(forumResponse.data || forumResponse);
 
-        // Check if the user is a member of this forum
-        if (userRole === 'student') {
-          try {
-            const participantsResponse = await forumService.getForumParticipants(forumId);
-            const participants = participantsResponse.data || [];
-            
-            // Check if current user is in the participants list
-            const isMember = participants.some(participant => 
-              String(participant.student_id) === String(user?.id) || 
-              participant.student_email === user?.email
-            );
-            
-            setIsForumMember(isMember);
-            
-            // If member, load messages immediately
-            if (isMember) {
-              const messagesResponse = await forumService.getMessages(forumId);
-              setMessages(messagesResponse.data);
-            }
-          } catch (error) {
-            console.error("Error checking forum membership:", error);
+        // Fetch participants and set
+        const participantsResp = await forumService.getForumParticipants(
+          forumId
+        );
+        setParticipants(participantsResp.data || participantsResp);
+
+        // Membership logic
+        let isMember = false;
+        if (userRole === "student") {
+          isMember = (participantsResp.data || participantsResp).some(
+            (p) =>
+              String(p.student_id) === String(user?.id) ||
+              p.student_email === user?.email
+          );
+          setIsForumMember(isMember);
+          if (isMember) {
+            const messagesResponse = await forumService.getMessages(forumId);
+            setMessages(messagesResponse.data || messagesResponse);
           }
-        } else if (userRole === 'instructor') {
-          // Instructors can access if they created the forum
-          const isCreator = String(forumResponse.data.created_by) === String(user?.id) || 
-                           forumResponse.data.created_by_email === user?.email;
+        } else if (userRole === "instructor") {
+          const isCreator =
+            String(
+              forumResponse.data?.created_by || forumResponse.created_by
+            ) === String(user?.id) ||
+            forumResponse.data?.created_by_email === user?.email ||
+            forumResponse.created_by_email === user?.email;
           setIsForumMember(isCreator);
-          
           if (isCreator) {
             const messagesResponse = await forumService.getMessages(forumId);
-            setMessages(messagesResponse.data);
+            setMessages(messagesResponse.data || messagesResponse);
           }
         }
-
         setLoading(false);
       } catch (error) {
-        console.error("Error fetching forum details:", error);
         setLoading(false);
       }
     };
 
     fetchForumDetails();
 
-    // Set up polling for new messages only if user has access
     const interval = setInterval(() => {
       if (isForumMember) {
         forumService
           .getMessages(forumId)
-          .then((response) => setMessages(response.data))
-          .catch((error) => console.error("Error polling messages:", error));
+          .then((response) => setMessages(response.data || response))
+          .catch(() => {});
+        // Also refetch participants in case someone else joins
+        forumService
+          .getForumParticipants(forumId)
+          .then((resp) => setParticipants(resp.data || resp))
+          .catch(() => {});
       }
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [forumId, user, userRole]);
+    // eslint-disable-next-line
+  }, [forumId, user, userRole, isForumMember]);
 
   useEffect(() => {
-    // Scroll to bottom when messages change
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Send message and/or file
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() && !file) return;
 
+    let sentMessage = null;
     try {
-      await forumService.sendMessage({
-        forum: forumId,
-        content: newMessage,
-      });
+      const msgContent = newMessage.trim()
+        ? newMessage
+        : file
+        ? "Sent an attachment"
+        : "";
+      let messageId = null;
+      if (msgContent) {
+        const result = await forumService.sendMessage({
+          forum: forumId,
+          content: msgContent,
+        });
+        sentMessage = result.data || result;
+        messageId = sentMessage.id;
+      }
 
-      // Refresh messages
+      if (file) {
+        const formData = new FormData();
+        formData.append("forum", forumId);
+        formData.append("file", file);
+        if (!messageId && messages.length > 0) {
+          messageId = messages[messages.length - 1].id;
+        }
+        if (messageId) formData.append("message", messageId);
+        formData.append("sender_type", userRole);
+        formData.append("sender_id", user?.id);
+
+        await forumService.uploadAttachment(formData);
+      }
+
       const response = await forumService.getMessages(forumId);
-      setMessages(response.data);
+      setMessages(response.data || response);
       setNewMessage("");
+      setFile(null);
     } catch (error) {
-      console.error("Error sending message:", error);
+      alert("Error sending message or attachment.");
     }
   };
 
-  // Enhanced join forum handler
+  const handleFileChange = (e) => {
+    const selected = e.target.files[0];
+    if (selected) {
+      const allowed =
+        selected.type.startsWith("image/") ||
+        selected.type === "application/pdf";
+      if (!allowed) {
+        alert("Only image or PDF files are allowed.");
+        return;
+      }
+      setFile(selected);
+    }
+  };
+
+  // Join forum handler
   const handleJoinForum = async () => {
     try {
-      const result = await forumService.joinForum(forumId);
-      
-      // Show success message
+      await forumService.joinForum(forumId);
       setJoinSuccess(true);
-      setLeaveSuccess(false);
-      
-      // Update forum membership status
       setIsForumMember(true);
-      
-      // Refresh forum details after joining
+      // Fetch participants after joining
+      const participantsResp = await forumService.getForumParticipants(forumId);
+      setParticipants(participantsResp.data || participantsResp);
+      // Get messages after joining
       const messagesResponse = await forumService.getMessages(forumId);
-      setMessages(messagesResponse.data);
-      
-      // After 3 seconds, hide the success message
-      setTimeout(() => {
-        setJoinSuccess(false);
-      }, 3000);
+      setMessages(messagesResponse.data || messagesResponse);
+      setTimeout(() => setJoinSuccess(false), 2000);
     } catch (error) {
-      console.error("Error joining forum:", error);
-      // You might want to show an error message to the user here
+      alert(
+        error.response?.data?.detail || error.message || "Error joining forum."
+      );
     }
   };
-  
-  // Add leave forum handler
+
+  // Leave forum handler
   const handleLeaveForum = async () => {
     try {
       await forumService.leaveForum(forumId);
-      
-      // Show leave success message
       setLeaveSuccess(true);
-      setJoinSuccess(false);
-      
-      // Update forum membership status
       setIsForumMember(false);
-      
-      // After 2 seconds, redirect to forums page
-      setTimeout(() => {
-        navigate('/forum');
-      }, 2000);
+      setTimeout(() => navigate("/forum"), 1500);
     } catch (error) {
-      console.error("Error leaving forum:", error);
+      alert(
+        error.response?.data?.detail || error.message || "Error leaving forum."
+      );
     }
   };
 
@@ -173,7 +203,7 @@ const ForumChat = () => {
   }
 
   // Show join prompt for students who haven't joined and aren't already members
-  if (userRole === 'student' && !isForumMember && !loading) {
+  if (userRole === "student" && !isForumMember && !loading) {
     return (
       <>
         <Navbar />
@@ -183,17 +213,20 @@ const ForumChat = () => {
               &larr; Back to Forums
             </Link>
           </div>
-          
           <div className="bg-gray-800 rounded-lg shadow-md p-8 text-center">
             <h2 className="text-xl font-bold text-white mb-4">{forum.title}</h2>
             <p className="text-gray-300 mb-6">{forum.description}</p>
-            
-            <button 
+            <button
               onClick={handleJoinForum}
               className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg"
             >
               Join Forum
             </button>
+            {joinSuccess && (
+              <div className="mt-4 text-green-400">
+                Successfully joined the forum!
+              </div>
+            )}
           </div>
         </div>
         <Footer />
@@ -209,16 +242,14 @@ const ForumChat = () => {
           <Link to="/forum" className="text-green-400 hover:text-green-500">
             &larr; Back to Forums
           </Link>
-          
-          {/* Leave button for students who have joined */}
-          {userRole === 'student' && isForumMember && (
+          {userRole === "student" && isForumMember && (
             <div>
               {leaveSuccess ? (
                 <div className="bg-yellow-500 bg-opacity-20 border border-yellow-500 text-yellow-400 px-4 py-2 rounded">
                   You have left the forum. Redirecting...
                 </div>
               ) : (
-                <button 
+                <button
                   onClick={handleLeaveForum}
                   className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
                 >
@@ -230,7 +261,7 @@ const ForumChat = () => {
         </div>
 
         <div className="bg-gray-700 bg-opacity-50 rounded-lg shadow-md overflow-hidden">
-          {/* Forum Header */}
+          {/* Forum Header with participant count */}
           <div className="bg-gray-800 bg-opacity-50 p-4 border-b border-gray-600">
             <div className="flex items-center">
               <div className="mr-3">
@@ -246,6 +277,9 @@ const ForumChat = () => {
                 <h2 className="text-xl font-bold text-white">{forum.title}</h2>
                 <p className="text-sm text-gray-400">
                   Host: {forum.created_by_name || "Unknown"}
+                </p>
+                <p className="text-sm text-gray-400 font-semibold">
+                  Participants: {participants.length}
                 </p>
               </div>
             </div>
@@ -276,8 +310,43 @@ const ForumChat = () => {
                       {message.sender_name || "Unknown User"}
                     </p>
                     <p>{message.content}</p>
+                    {/* Attachments display */}
+                    {message.attachments && message.attachments.length > 0 && (
+                      <div className="mt-2">
+                        {message.attachments.map((att) => (
+                          <div key={att.id} className="mb-1">
+                            {att.file_type.startsWith("image/") ? (
+                              <a
+                                href={att.file_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <img
+                                  src={att.file_url}
+                                  alt={att.file_name}
+                                  className="w-32 h-32 object-cover rounded border mt-1"
+                                />
+                              </a>
+                            ) : att.file_type === "application/pdf" ? (
+                              <a
+                                href={att.file_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-400 underline"
+                              >
+                                📄 {att.file_name}
+                              </a>
+                            ) : (
+                              <span>{att.file_name}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <p className="text-xs opacity-75 mt-1">
-                      {new Date(message.created_at).toLocaleString()}
+                      {new Date(
+                        message.sent_at || message.created_at
+                      ).toLocaleString()}
                     </p>
                   </div>
                 </div>
@@ -288,13 +357,22 @@ const ForumChat = () => {
 
           {/* Message Input */}
           <div className="border-t border-gray-600 p-4">
-            <form onSubmit={handleSendMessage} className="flex">
+            <form
+              onSubmit={handleSendMessage}
+              className="flex flex-col sm:flex-row items-center gap-2"
+            >
               <input
                 type="text"
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 placeholder="Type your message..."
                 className="flex-grow bg-gray-700 text-white border border-gray-600 rounded-l-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                onChange={handleFileChange}
+                className="bg-gray-700 text-white px-2 py-1 rounded"
               />
               <button
                 type="submit"
@@ -303,6 +381,18 @@ const ForumChat = () => {
                 Send
               </button>
             </form>
+            {file && (
+              <div className="mt-2 text-gray-300 text-sm">
+                File to upload: {file.name}{" "}
+                <button
+                  type="button"
+                  className="ml-2 text-red-400"
+                  onClick={() => setFile(null)}
+                >
+                  Remove
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

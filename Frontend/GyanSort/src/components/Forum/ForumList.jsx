@@ -3,7 +3,6 @@ import { Link, useNavigate } from "react-router-dom";
 import forumService from "../../services/forumService";
 import { useAuth } from "../../context/AuthContext";
 import Navbar from "../stick/Navbar";
-// Import jwt-decode correctly
 import { jwtDecode } from "jwt-decode";
 
 const ForumList = () => {
@@ -16,32 +15,27 @@ const ForumList = () => {
   const { userRole, user } = useAuth();
   const navigate = useNavigate();
 
-  // List of topics for the sidebar
   const topics = ["All", "Python", "DSA", "SEO"];
 
-  // Add state for decoded token info
   const [decodedUser, setDecodedUser] = useState(null);
+  const [localUserType, setLocalUserType] = useState(
+    localStorage.getItem("userType")
+  );
 
-  // Add a direct state for user type from localStorage
-  const [localUserType, setLocalUserType] = useState(localStorage.getItem('userType'));
-  
   useEffect(() => {
-    // Check localStorage directly for user type
-    const userType = localStorage.getItem('userType');
+    const userType = localStorage.getItem("userType");
     setLocalUserType(userType);
-    console.log('User type from localStorage:', userType);
-    
+
     // Decode token to get user information
     const decodeToken = () => {
       try {
-        const token = localStorage.getItem('access');
+        const token = localStorage.getItem("access");
         if (token) {
           const decoded = jwtDecode(token);
-          console.log('Decoded token:', decoded);
           setDecodedUser(decoded);
         }
       } catch (error) {
-        console.error('Error decoding token:', error);
+        // ignore
       }
     };
 
@@ -52,50 +46,44 @@ const ForumList = () => {
     const fetchForums = async () => {
       try {
         const response = await forumService.getForums();
-        console.log('Forums data received:', response);
-        
         const forumsData = Array.isArray(response.data) ? response.data : [];
-        
-        // Use decoded token info to determine user role and ID
+
+        // Get current user info (logic same as before)
         const userInfo = decodedUser || {};
         const currentUserRole = userInfo.role || userRole;
         const currentUserId = userInfo.user_id || user?.id;
         const currentUserEmail = userInfo.email || user?.email;
-        
-        console.log('Current user info:', { 
-          role: currentUserRole, 
-          id: currentUserId, 
-          email: currentUserEmail 
-        });
-        
-        if (currentUserRole === 'instructor') {
-          const filteredForums = forumsData.filter(forum => 
-            forum.created_by === currentUserId || 
-            forum.created_by_email === currentUserEmail
-          );
-          setForums(filteredForums);
-          setFilteredForums(filteredForums);
-        } else {
-          // Students see all forums
-          setForums(forumsData);
-          setFilteredForums(forumsData);
-        }
 
-        // Fetch participants for each forum
+        let visibleForums = forumsData;
+        if (currentUserRole === "instructor") {
+          visibleForums = forumsData.filter(
+            (forum) =>
+              forum.created_by === currentUserId ||
+              forum.created_by_email === currentUserEmail
+          );
+        }
+        setForums(visibleForums);
+        setFilteredForums(visibleForums);
+
+        // Fetch participants for each forum (only count active ones)
         const participantsData = {};
-        for (const forum of forumsData) {
+        for (const forum of visibleForums) {
           try {
-            const participantsResponse = await forumService.getForumParticipants(forum.id);
-            participantsData[forum.id] = participantsResponse.data || [];
+            const participantsResponse =
+              await forumService.getForumParticipants(forum.id);
+            // Only count is_active === true memberships
+            const participantsArr =
+              participantsResponse.data || participantsResponse || [];
+            const activeParticipants = participantsArr.filter(
+              (p) => p.is_active === true
+            );
+            participantsData[forum.id] = activeParticipants.length || 0;
           } catch (error) {
-            console.error(`Error fetching participants for forum ${forum.id}:`, error);
-            participantsData[forum.id] = [];
+            participantsData[forum.id] = 0;
           }
         }
-
         setForumParticipants(participantsData);
       } catch (error) {
-        console.error("Error fetching forums:", error);
         setForums([]);
         setFilteredForums([]);
       } finally {
@@ -110,14 +98,12 @@ const ForumList = () => {
   useEffect(() => {
     let filtered = forums;
 
-    // Filter by topic if not "All"
     if (selectedTopic !== "All") {
       filtered = filtered.filter((forum) =>
         forum.title.toLowerCase().includes(selectedTopic.toLowerCase())
       );
     }
 
-    // Filter by search term
     if (searchTerm.trim() !== "") {
       filtered = filtered.filter(
         (forum) =>
@@ -145,7 +131,7 @@ const ForumList = () => {
   };
 
   const handleJoinForum = async (e, forumId) => {
-    e.stopPropagation(); // Prevent forum click event
+    e.stopPropagation();
 
     try {
       await forumService.joinForum(forumId);
@@ -153,61 +139,18 @@ const ForumList = () => {
       const participantsResponse = await forumService.getForumParticipants(
         forumId
       );
+      const participantsArr =
+        participantsResponse.data || participantsResponse || [];
+      const activeParticipants = participantsArr.filter(
+        (p) => p.is_active === true
+      );
       setForumParticipants((prev) => ({
         ...prev,
-        [forumId]: participantsResponse.data,
+        [forumId]: activeParticipants.length || 0,
       }));
     } catch (error) {
-      console.error("Error joining forum:", error);
+      // ignore
     }
-  };
-
-  // Check if user is the creator of the forum
-  const isForumCreator = (forum) => {
-    const currentUserId = decodedUser?.user_id || user?.id;
-    const currentUserEmail = decodedUser?.email || user?.email;
-    
-    console.log('Checking if creator:', {
-      forumCreatedBy: forum.created_by,
-      forumCreatedByEmail: forum.created_by_email,
-      currentUserId,
-      currentUserEmail
-    });
-    
-    return (
-      String(forum.created_by) === String(currentUserId) || 
-      forum.created_by_email === currentUserEmail
-    );
-  };
-
-  // Update hasJoinedForum to use decoded token info
-  const hasJoinedForum = (forumId) => {
-    const participants = forumParticipants[forumId] || [];
-    const currentUserId = decodedUser?.user_id || user?.id;
-    const currentUserEmail = decodedUser?.email || user?.email;
-    const currentUserRole = decodedUser?.role || userRole;
-    
-    // If user is an instructor and created this forum, they don't need to join
-    if (currentUserRole === 'instructor' && isForumCreator({ id: forumId, created_by: forums.find(f => f.id === forumId)?.created_by })) {
-      return true;
-    }
-    
-    // For students, check if they're in the participants list
-    const isParticipant = participants.some(
-      participant => 
-        String(participant.student_id) === String(currentUserId) || 
-        participant.student_email === currentUserEmail
-    );
-    
-    console.log('Checking if joined:', {
-      forumId,
-      participants,
-      currentUserId,
-      currentUserEmail,
-      isParticipant
-    });
-    
-    return isParticipant;
   };
 
   if (loading) {
@@ -221,7 +164,6 @@ const ForumList = () => {
     );
   }
 
-  // Modify the forum display section to directly check localStorage
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800">
       <Navbar />
@@ -305,46 +247,53 @@ const ForumList = () => {
               filteredForums.map((forum) => (
                 <div
                   key={forum.id}
-                  className="bg-gray-700 bg-opacity-50 rounded-lg p-4 cursor-pointer hover:bg-opacity-70 transition-all"
+                  className="bg-gray-700 bg-opacity-50 rounded-lg p-4 cursor-pointer hover:bg-opacity-70 transition-all flex items-start"
                   onClick={() => handleForumClick(forum.id)}
                 >
-                  <div className="flex items-start">
-                    <div className="mr-4">
-                      <div className="w-10 h-10 rounded-full bg-gray-500 flex items-center justify-center overflow-hidden">
-                        {forum.created_by_profile_picture ? (
-                          <img
-                            src={forum.created_by_profile_picture}
-                            alt={forum.created_by_name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <span className="text-white font-bold">
-                            {forum.created_by_name
-                              ? forum.created_by_name.charAt(0).toUpperCase()
-                              : "K"}
-                          </span>
-                        )}
+                  {/* Participant count on the left */}
+                  <div className="flex flex-col items-center justify-center mr-4 min-w-[48px]">
+                    <span className="text-green-400 font-bold text-lg">
+                      {forumParticipants[forum.id] || 0}
+                    </span>
+                    <span className="text-xs text-gray-400">Joined</span>
+                  </div>
+                  {/* Avatar and forum info */}
+                  <div className="mr-4">
+                    <div className="w-10 h-10 rounded-full bg-gray-500 flex items-center justify-center overflow-hidden">
+                      {forum.created_by_profile_picture ? (
+                        <img
+                          src={forum.created_by_profile_picture}
+                          alt={forum.created_by_name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-white font-bold">
+                          {forum.created_by_name
+                            ? forum.created_by_name.charAt(0).toUpperCase()
+                            : "K"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-white text-lg font-semibold">
+                      {forum.title}
+                    </h3>
+                    <p className="text-gray-300 text-sm mt-1">
+                      {forum.description}
+                    </p>
+                    <div className="flex justify-between items-center mt-2">
+                      <div className="text-gray-400 text-xs">
+                        Host: {forum.created_by_name || "Unknown"}
+                      </div>
+                      <div className="text-gray-400 text-xs">
+                        {forumParticipants[forum.id] || 0} participants
                       </div>
                     </div>
-                    <div className="flex-1">
-                      <h3 className="text-white text-lg font-semibold">
-                        {forum.title}
-                      </h3>
-                      <p className="text-gray-300 text-sm mt-1">
-                        {forum.description}
-                      </p>
-                      <div className="flex justify-between items-center mt-2">
-                        <div className="text-gray-400 text-xs">
-                          Host: {forum.created_by_name || "Unknown"}
-                        </div>
-                        <div className="text-gray-400 text-xs">
-                          {forumParticipants[forum.id]?.length || 0} participants
-                        </div>
-                      </div>
-                      
-                      {/* Simplified join button logic */}
-                      {localStorage.getItem('userType') === 'student' && 
-                       String(forum.created_by) !== String(localStorage.getItem('userId')) && (
+                    {/* Join button */}
+                    {localStorage.getItem("userType") === "student" &&
+                      String(forum.created_by) !==
+                        String(localStorage.getItem("userId")) && (
                         <div className="mt-3 text-right">
                           <button
                             onClick={(e) => handleJoinForum(e, forum.id)}
@@ -354,7 +303,6 @@ const ForumList = () => {
                           </button>
                         </div>
                       )}
-                    </div>
                   </div>
                 </div>
               ))
