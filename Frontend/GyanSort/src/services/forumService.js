@@ -94,28 +94,14 @@ const forumService = {
 
   joinForum: async (forumId) => {
     try {
-      const userId =
-        localStorage.getItem("userId") || localStorage.getItem("id");
-      const userEmail = localStorage.getItem("email");
-
-      // First check if already a member
-      const isMember = await forumService.isForumMember(forumId);
-      if (isMember) {
-        return { success: true, message: "Already a member of this forum" };
-      }
-
-      const response = await api.post(`/forums/forums/${forumId}/join/`, {
-        student_id: userId,
-        student_email: userEmail,
-      });
-
+      // Don't send student_id/email in the body, backend uses token for user info
+      const response = await api.post(`/forums/forums/${forumId}/join/`);
       return {
         success: true,
         message: "Successfully joined the forum",
         data: response.data,
       };
     } catch (error) {
-      // Check if the error is because user is already a member
       if (
         error.response?.data?.detail ===
         "You are already a member of this forum."
@@ -125,7 +111,6 @@ const forumService = {
       throw error;
     }
   },
-
   leaveForum: async (forumId) => {
     const userId = localStorage.getItem("userId") || localStorage.getItem("id");
     const userEmail = localStorage.getItem("email");

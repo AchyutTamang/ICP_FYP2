@@ -10,86 +10,83 @@ const ForumChat = () => {
   const { user, userRole } = useAuth();
   const [forum, setForum] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [participants, setParticipants] = useState([]); // <-- NEW
+  const [participants, setParticipants] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isForumMember, setIsForumMember] = useState(false);
-  const [joinSuccess, setJoinSuccess] = useState(false);
   const [leaveSuccess, setLeaveSuccess] = useState(false);
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
 
-  // Load forum details and membership
   useEffect(() => {
     const fetchForumDetails = async () => {
       try {
         const forumResponse = await forumService.getForumDetails(forumId);
         setForum(forumResponse.data || forumResponse);
 
-        // Fetch participants and set
         const participantsResp = await forumService.getForumParticipants(
           forumId
         );
-        setParticipants(participantsResp.data || participantsResp);
+        setParticipants(participantsResp);
 
-        // Membership logic
         let isMember = false;
+        const userId = user?.id || localStorage.getItem("userId");
+        const userEmail = user?.email || localStorage.getItem("email");
+
         if (userRole === "student") {
-          isMember = (participantsResp.data || participantsResp).some(
+          isMember = participantsResp.some(
             (p) =>
-              String(p.student_id) === String(user?.id) ||
-              p.student_email === user?.email
+              String(p.student_id) === String(userId) ||
+              p.student_email === userEmail
           );
-          setIsForumMember(isMember);
           if (isMember) {
             const messagesResponse = await forumService.getMessages(forumId);
             setMessages(messagesResponse.data || messagesResponse);
+          } else {
+            navigate(`/forums/${forumId}/group`);
           }
         } else if (userRole === "instructor") {
           const isCreator =
             String(
               forumResponse.data?.created_by || forumResponse.created_by
-            ) === String(user?.id) ||
-            forumResponse.data?.created_by_email === user?.email ||
-            forumResponse.created_by_email === user?.email;
-          setIsForumMember(isCreator);
+            ) === String(userId) ||
+            forumResponse.data?.created_by_email === userEmail ||
+            forumResponse.created_by_email === userEmail;
           if (isCreator) {
             const messagesResponse = await forumService.getMessages(forumId);
             setMessages(messagesResponse.data || messagesResponse);
+          } else {
+            navigate(`/forums/${forumId}/group`);
           }
         }
         setLoading(false);
       } catch (error) {
         setLoading(false);
+        navigate(`/forums/${forumId}/group`);
       }
     };
 
     fetchForumDetails();
 
     const interval = setInterval(() => {
-      if (isForumMember) {
-        forumService
-          .getMessages(forumId)
-          .then((response) => setMessages(response.data || response))
-          .catch(() => {});
-        // Also refetch participants in case someone else joins
-        forumService
-          .getForumParticipants(forumId)
-          .then((resp) => setParticipants(resp.data || resp))
-          .catch(() => {});
-      }
+      forumService
+        .getMessages(forumId)
+        .then((response) => setMessages(response.data || response))
+        .catch(() => {});
+      forumService
+        .getForumParticipants(forumId)
+        .then((resp) => setParticipants(resp.data || resp))
+        .catch(() => {});
     }, 5000);
 
     return () => clearInterval(interval);
     // eslint-disable-next-line
-  }, [forumId, user, userRole, isForumMember]);
+  }, [forumId, user, userRole, navigate]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Send message and/or file
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() && !file) return;
@@ -148,33 +145,11 @@ const ForumChat = () => {
     }
   };
 
-  // Join forum handler
-  const handleJoinForum = async () => {
-    try {
-      await forumService.joinForum(forumId);
-      setJoinSuccess(true);
-      setIsForumMember(true);
-      // Fetch participants after joining
-      const participantsResp = await forumService.getForumParticipants(forumId);
-      setParticipants(participantsResp.data || participantsResp);
-      // Get messages after joining
-      const messagesResponse = await forumService.getMessages(forumId);
-      setMessages(messagesResponse.data || messagesResponse);
-      setTimeout(() => setJoinSuccess(false), 2000);
-    } catch (error) {
-      alert(
-        error.response?.data?.detail || error.message || "Error joining forum."
-      );
-    }
-  };
-
-  // Leave forum handler
   const handleLeaveForum = async () => {
     try {
       await forumService.leaveForum(forumId);
       setLeaveSuccess(true);
-      setIsForumMember(false);
-      setTimeout(() => navigate("/forum"), 1500);
+      setTimeout(() => navigate("/forum"), 11000);
     } catch (error) {
       alert(
         error.response?.data?.detail || error.message || "Error leaving forum."
@@ -202,38 +177,7 @@ const ForumChat = () => {
     );
   }
 
-  // Show join prompt for students who haven't joined and aren't already members
-  if (userRole === "student" && !isForumMember && !loading) {
-    return (
-      <>
-        <Navbar />
-        <div className="container mx-auto px-4 py-6 max-w-4xl min-h-screen pt-24">
-          <div className="mb-4">
-            <Link to="/forum" className="text-green-400 hover:text-green-500">
-              &larr; Back to Forums
-            </Link>
-          </div>
-          <div className="bg-gray-800 rounded-lg shadow-md p-8 text-center">
-            <h2 className="text-xl font-bold text-white mb-4">{forum.title}</h2>
-            <p className="text-gray-300 mb-6">{forum.description}</p>
-            <button
-              onClick={handleJoinForum}
-              className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg"
-            >
-              Join Forum
-            </button>
-            {joinSuccess && (
-              <div className="mt-4 text-green-400">
-                Successfully joined the forum!
-              </div>
-            )}
-          </div>
-        </div>
-        <Footer />
-      </>
-    );
-  }
-
+  // Chat UI only, no join UI
   return (
     <>
       <Navbar />
@@ -242,7 +186,7 @@ const ForumChat = () => {
           <Link to="/forum" className="text-green-400 hover:text-green-500">
             &larr; Back to Forums
           </Link>
-          {userRole === "student" && isForumMember && (
+          {userRole === "student" && (
             <div>
               {leaveSuccess ? (
                 <div className="bg-yellow-500 bg-opacity-20 border border-yellow-500 text-yellow-400 px-4 py-2 rounded">

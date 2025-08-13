@@ -33,6 +33,7 @@ import PaymentStatus from "./pages/PaymentStatus";
 import InstructorDashboard from "./pages/instructor/InstructorDashboard";
 import CategoryManagement from "./pages/instructor/CategoryManagement";
 import CourseDescription from "./components/Courses/CourseDescription";
+import ForumGroup from "./components/Forum/ForumGroup";
 
 // Debug component to help diagnose routing issues
 const RouteDebugger = () => {
@@ -51,22 +52,22 @@ const RouteDebugger = () => {
 const ProtectedRoute = ({ children, requiredRole }) => {
   const { isAuthenticated, userRole, loading } = useAuth();
   const location = useLocation();
-  
+
   useEffect(() => {
     // Check if token exists in localStorage
-    const token = localStorage.getItem('access_token');
+    const token = localStorage.getItem("access_token");
     console.log("ProtectedRoute check:", {
       path: location.pathname,
       isAuthenticated,
       userRole,
       requiredRole,
       loading,
-      hasToken: !!token
+      hasToken: !!token,
     });
-    
+
     // Set token in axios headers if it exists
     if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     }
   }, [location, isAuthenticated, userRole, requiredRole, loading]);
 
@@ -112,9 +113,6 @@ const HomeRoute = () => {
 
   return <Home />;
 };
-
-
-
 
 function App() {
   return (
@@ -210,14 +208,9 @@ function App() {
             }
           />
 
-          <Route
-            path="/forum/create"
-            element={
-              <ProtectedRoute requiredRole="instructor">
-                <CreateForum />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/forum/create" element={<CreateForum />} />
+          <Route path="/forums/:forumId/group" element={<ForumGroup />} />
+          <Route path="/forums/:forumId/chat" element={<ForumChat />} />
           <Route
             path="/instructor/create-modules"
             element={
@@ -272,7 +265,6 @@ function App() {
             element={<ResetPassword />}
           />
         </Routes>
-        
       </CartProvider>
     </>
   );
