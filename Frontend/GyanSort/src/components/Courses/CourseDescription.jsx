@@ -8,6 +8,10 @@ import {
   FaStar,
   FaChevronDown,
   FaChevronUp,
+  FaVideo,
+  FaFilePdf,
+  FaFile,
+  FaTimes,
 } from "react-icons/fa";
 import axios from "axios";
 import { toast } from "react-toastify";
@@ -23,6 +27,10 @@ const CourseDescription = () => {
   const [userRating, setUserRating] = useState(0);
   const [userReview, setUserReview] = useState("");
   const [expandedLesson, setExpandedLesson] = useState(null);
+  const [activeContent, setActiveContent] = useState(null);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState(null);
+
   const handleAddToCart = async () => {
     if (!isAuthenticated) {
       toast.error("Please login to add courses to cart");
@@ -143,7 +151,6 @@ const CourseDescription = () => {
         );
 
         if (response.data) {
-          console.log("Course data:", response.data); // Add this to debug
           setCourse(response.data);
         }
       } catch (error) {
@@ -157,7 +164,6 @@ const CourseDescription = () => {
     fetchCourseDetails();
   }, [courseId]);
 
-  // Add cleanup for video
   useEffect(() => {
     return () => {
       const video = document.querySelector("video");
@@ -169,63 +175,16 @@ const CourseDescription = () => {
     };
   }, []);
 
-  // Add navigation function for instructor profile
   const navigateToInstructorProfile = (instructorId) => {
     if (instructorId) {
       navigate(`/instructor/${instructorId}`);
     }
   };
 
-  // Update the instructor section in the return statement
-  <div
-    className="bg-gray-800 p-6 rounded-lg cursor-pointer"
-    onClick={() => navigateToInstructorProfile(course?.instructor?.id)}
-  >
-    <div className="flex items-center space-x-4 mb-4">
-      <div className="relative w-16 h-16 rounded-full overflow-hidden bg-gray-700">
-        <img
-          src={course?.instructor?.profile_picture || "/gyansort-logo.png"}
-          alt={course?.instructor?.name || "Instructor"}
-          className="w-full h-full object-cover"
-          onError={(e) => {
-            e.target.src = "/gyansort-logo.png";
-          }}
-        />
-      </div>
-      <div>
-        <h3 className="text-white text-xl font-semibold hover:text-[#00FF40]">
-          {course?.instructor?.name || "Instructor Name"}
-        </h3>
-        <p className="text-gray-400">
-          {course?.instructor?.title || "Course Instructor"}
-        </p>
-      </div>
-    </div>
-    {course?.instructor?.bio && (
-      <p className="text-gray-300 text-sm mt-2 border-t border-gray-700 pt-4">
-        {course.instructor.bio}
-      </p>
-    )}
-  </div>;
-
-  {
-    /* Update the price display */
-  }
-  <div className="text-3xl font-bold text-[#00FF40] bg-gray-800 p-4 rounded-lg">
-    Rs.{" "}
-    {parseFloat(course?.price || 0).toLocaleString("en-IN", {
-      maximumFractionDigits: 2,
-      minimumFractionDigits: 2,
-    })}
-  </div>;
-
   return (
     <div className="min-h-screen bg-gray-900">
       <Navbar />
-      {/* Add top padding to fix visibility issues */}
       <div className="container mx-auto px-4 py-20">
-        {" "}
-        {/* Changed py-8 to py-20 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
           {/* Left Side */}
           <div className="space-y-6">
@@ -305,7 +264,7 @@ const CourseDescription = () => {
                 className="w-full aspect-video"
                 controls
                 poster={course?.course_thumbnail}
-                key={course.demo_video} // Add key to force video reload when source changes
+                key={course.demo_video}
               >
                 <source src={course.demo_video} type="video/mp4" />
                 Your browser does not support the video tag.
@@ -317,6 +276,7 @@ const CourseDescription = () => {
             )}
           </div>
         </div>
+
         {/* Course Content Section */}
         <div className="bg-gray-800 rounded-lg p-6 mb-12">
           <h2 className="text-2xl font-bold text-white mb-6">Course Content</h2>
@@ -346,6 +306,7 @@ const CourseDescription = () => {
                     <FaChevronDown className="text-[#00FF40] transition-transform duration-200" />
                   )}
                 </button>
+
                 {expandedSection === module.id && (
                   <div className="border-t border-gray-700">
                     <p className="text-gray-400 px-6 py-3 bg-gray-800/30 italic">
@@ -356,12 +317,20 @@ const CourseDescription = () => {
                         <div key={lesson.id} className="bg-gray-800/20">
                           <div
                             className="px-6 py-4 cursor-pointer hover:bg-gray-700/30 transition-colors"
-                            onClick={() => setExpandedLesson(expandedLesson === lesson.id ? null : lesson.id)}
+                            onClick={() =>
+                              setExpandedLesson(
+                                expandedLesson === lesson.id ? null : lesson.id
+                              )
+                            }
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-3">
-                                <span className="text-gray-400 text-sm">Lesson {lessonIndex + 1}</span>
-                                <h3 className="font-medium text-white">{lesson.title}</h3>
+                                <span className="text-gray-400 text-sm">
+                                  Lesson {lessonIndex + 1}
+                                </span>
+                                <h3 className="font-medium text-white">
+                                  {lesson.title}
+                                </h3>
                               </div>
                               {expandedLesson === lesson.id ? (
                                 <FaChevronUp className="text-gray-400 text-sm" />
@@ -370,21 +339,74 @@ const CourseDescription = () => {
                               )}
                             </div>
                           </div>
+
                           {expandedLesson === lesson.id && (
                             <div className="px-6 pb-4">
-                              <p className="text-gray-400 text-sm mb-3 ml-6">{lesson.description}</p>
+                              <p className="text-gray-400 text-sm mb-3 ml-6">
+                                {lesson.description}
+                              </p>
                               <div className="space-y-2 ml-6">
-                                {lesson.contents?.map((content, contentIndex) => (
-                                  <div
-                                    key={content.id}
-                                    className="flex items-center gap-3 text-gray-300 hover:text-[#00FF40] transition-colors"
-                                  >
-                                    <FaPlay className="text-xs" />
-                                    <span className="text-sm">{content.title}</span>
-                                    <span className="text-xs text-gray-500 ml-auto">{content.content_type}</span>
-                                  </div>
-                                ))}
+                                {lesson.contents?.map(
+                                  (content, contentIndex) => (
+                                    <div
+                                      key={content.id}
+                                      className="flex items-center gap-3 text-gray-300 hover:text-[#00FF40] transition-colors cursor-pointer"
+                                      onClick={() => {
+                                        if (content.content_type === "video") {
+                                          setSelectedVideo(content);
+                                          setIsVideoModalOpen(true);
+                                        } else if (
+                                          content.content_type === "pdf"
+                                        ) {
+                                          setActiveContent(
+                                            activeContent === content.id
+                                              ? null
+                                              : content.id
+                                          );
+                                        }
+                                      }}
+                                    >
+                                      {content.content_type === "video" ? (
+                                        <FaPlay className="text-xs" />
+                                      ) : content.content_type === "pdf" ? (
+                                        <FaFilePdf className="text-xs" />
+                                      ) : (
+                                        <FaFile className="text-xs" />
+                                      )}
+                                      <span className="text-sm">
+                                        {content.title}
+                                      </span>
+                                      <span className="text-xs text-gray-500 ml-auto">
+                                        {content.content_type}
+                                      </span>
+                                    </div>
+                                  )
+                                )}
                               </div>
+
+                              {/* PDF Viewer */}
+                              {activeContent &&
+                                lesson.contents?.find(
+                                  (c) => c.id === activeContent
+                                )?.content_type === "pdf" && (
+                                  <div className="mt-4 rounded-lg overflow-hidden bg-gray-800/30 p-4">
+                                    <iframe
+                                      src={
+                                        lesson.contents.find(
+                                          (c) => c.id === activeContent
+                                        )?.file
+                                      }
+                                      className="w-full h-[600px]"
+                                      title={
+                                        lesson.contents.find(
+                                          (c) => c.id === activeContent
+                                        )?.title
+                                      }
+                                    >
+                                      Your browser does not support PDF viewing.
+                                    </iframe>
+                                  </div>
+                                )}
                             </div>
                           )}
                         </div>
@@ -396,6 +418,34 @@ const CourseDescription = () => {
             ))}
           </div>
         </div>
+
+        {/* Video Modal */}
+        {isVideoModalOpen && selectedVideo && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+            <div className="relative w-[90%] max-w-4xl bg-gray-900 rounded-lg overflow-hidden">
+              <button
+                onClick={() => {
+                  setIsVideoModalOpen(false);
+                  setSelectedVideo(null);
+                }}
+                className="absolute top-4 right-4 text-white hover:text-[#00FF40] transition-colors"
+              >
+                <FaTimes className="text-xl" />
+              </button>
+              <div className="relative" style={{ paddingTop: "56.25%" }}>
+                <video
+                  controls
+                  autoPlay
+                  className="absolute top-0 left-0 w-full h-full object-contain"
+                  src={selectedVideo.cloudfront_url}
+                >
+                  Your browser does not support the video tag.
+                </video>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Reviews & Ratings Section */}
         <div className="bg-gray-800 rounded-lg p-6">
           <h2 className="text-2xl font-bold text-white mb-6">

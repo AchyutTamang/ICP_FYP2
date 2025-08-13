@@ -8,10 +8,9 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import KhaltiCheckout from "khalti-checkout-web";
 
-
-// Make sure the component name matches what you're exporting
 const CartPage = () => {
-  const { cartItems, removeFromCart, fetchCartItems } = useCart();
+  const { cartItems, removeFromCart, fetchCartItems, addToFavorites } =
+    useCart();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [totalPrice, setTotalPrice] = useState(0);
@@ -25,127 +24,95 @@ const CartPage = () => {
           navigate("/login");
           return;
         }
-        console.log("Fetching cart items..."); // Debug log
         await fetchCartItems();
-        console.log("Cart items fetched:", cartItems); // Debug log
         setLoading(false);
       } catch (err) {
-        console.error("Error loading cart:", err);
         setError(err.message);
         setLoading(false);
       }
     };
-
     loadCart();
   }, [user, navigate, fetchCartItems]);
 
-  // Add this debug log
-  useEffect(() => {
-    console.log("Current cart items:", cartItems);
-  }, [cartItems]);
-
-  // Calculate total price whenever cart items change
   useEffect(() => {
     const total = cartItems.reduce((sum, item) => {
-      const priceString = item.course_details?.course_price || "0";
-      const numericPrice = parseFloat(priceString.replace(/[^\d.]/g, "")) || 0;
-      return sum + numericPrice;
+      const priceNum = Number(item.course_details?.course_price) || 0;
+      return sum + priceNum;
     }, 0);
-    setTotalPrice(total.toFixed(2)); 
+    setTotalPrice(total);
   }, [cartItems]);
 
   const handleRemoveFromCart = async (cartItemId) => {
     const result = await removeFromCart(cartItemId);
-    if (result.success) {
-      toast.success("Item removed from cart");
-    } else {
-      toast.error(result.error || "Failed to remove item from cart");
-    }
+    if (result.success) toast.success("Item removed from cart");
+    else toast.error(result.error || "Failed to remove item from cart");
   };
 
   const handleAddToFavorites = async (courseId) => {
     const result = await addToFavorites(courseId);
-    if (result.success) {
-      toast.success("Course added to favorites successfully!");
-    } else {
-      if (result.error === "Course already in favorites") {
-        toast.info("This course is already in your favorites");
-      } else {
-        toast.error(result.error || "Failed to add course to favorites");
-      }
-    }
+    if (result.success) toast.success("Course added to favorites!");
+    else if (result.error === "Course already in favorites")
+      toast.info("Already in favorites");
+    else toast.error(result.error || "Failed to add to favorites");
   };
 
-  const khaltiKey = "9cdb33a2b0724d56bdc1be878157f7e0"; 
-  
-  // Update the handleCheckout function
+  // Khalti widget-based checkout
   const handleCheckout = async () => {
-    try {
-      // Initialize Khalti payment directly instead of creating an order first
-      const config = {
-        publicKey: khaltiKey,
-        productIdentity: Date.now().toString(), // Use timestamp as unique identifier
-        productName: "GyanSort Courses",
-        productUrl: "http://localhost:5173",
-        amount: Math.round(totalPrice * 100), // Convert to paisa
-        eventHandler: {
-          onSuccess: async (payload) => {
-            console.log("Payment Success:", payload);
-            try {
-              // Use the existing payment verification endpoint
-              const verifyResponse = await axios.post(
-                "http://localhost:8000/api/payments/payments/verify-khalti/",
-                {
-                  pidx: payload.pidx,
-                  amount: payload.amount,
-                  transaction_id: payload.idx
-                },
-                {
-                  headers: {
-                    Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-                  },
-                }
-              );
-
-              if (verifyResponse.data.success) {
-                navigate(`/payment-status/success`);
-              } else {
-                navigate(`/payment-status/failure`);
-              }
-            } catch (error) {
-              console.error("Payment verification failed:", error);
-              navigate(`/payment-status/failure`);
-            }
-          },
-          onError: (error) => {
-            console.error("Payment Error:", error);
-            navigate(`/payment-status/failure`);
-          },
-          onClose: () => {
-            console.log('Widget is closing');
-          }
-        }
-      };
-
-      // Initialize and show Khalti checkout
-      let checkout = new KhaltiCheckout(config);
-      checkout.show();
-
-    } catch (err) {
-      console.error("Error during checkout:", err);
-      toast.error(err.response?.data?.detail || "Failed to process checkout");
+    if (!user) {
+      toast.error("Please login to proceed.");
+      return;
     }
+    const config = {
+      publicKey: "test_public_key_dc74b9a8d8c94a4ca9b6d8a2b68b1cb7", // <-- Replace with your actual key!
+      productIdentity: Date.now().toString(),
+      productName: "GyanSort Courses",
+      productUrl: window.location.origin,
+      amount: Math.round(totalPrice * 100), // paisa
+      eventHandler: {
+        onSuccess: async (payload) => {
+          try {
+            const verifyRes = await axios.post(
+              "http://localhost:8000/api/payments/payments/verify-khalti/",
+              { pidx: payload.pidx },
+              {
+                headers: {
+                  Authorization: `Bearer ${localStorage.getItem(
+                    "access_token"
+                  )}`,
+                },
+              }
+            );
+            if (verifyRes.data.success) navigate(`/payment-status/success`);
+            else navigate(`/payment-status/failure`);
+          } catch (error) {
+            navigate(`/payment-status/failure`);
+          }
+        },
+        onError: (error) => {
+          toast.error("Payment failed. Try again.");
+          navigate(`/payment-status/failure`);
+        },
+        onClose: () => {
+          // Optionally handle widget close
+        },
+      },
+      paymentPreference: [
+        "KHALTI",
+        "EBANKING",
+        "MOBILE_BANKING",
+        "CONNECT_IPS",
+        "SCT",
+      ],
+    };
+    let checkout = new KhaltiCheckout(config);
+    checkout.show({ amount: Math.round(totalPrice * 100) });
   };
-
-  console.log("cartItems:", cartItems);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800">
       <Navbar />
-
       <div className="container mx-auto px-4 pt-24 pb-16">
         <h1 className="text-3xl font-bold text-white mb-8">Your Cart</h1>
-
         {loading ? (
           <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#00FF40]"></div>
@@ -191,10 +158,9 @@ const CartPage = () => {
                       </p>
                     </div>
                   </div>
-
                   <div className="flex items-center space-x-4 w-full md:w-auto">
                     <div className="text-[#00FF40] font-bold text-xl">
-                       {item.course_details?.display_price || 0}
+                      RS {item.course_details?.course_price || 0}
                     </div>
                     <button
                       onClick={() =>
@@ -205,23 +171,16 @@ const CartPage = () => {
                     >
                       <FaHeart />
                     </button>
-                   
                     <button
-                      onClick={() => handleRemoveFromCart(item.id)}  // Changed from course_details?.id to item.id
+                      onClick={() => handleRemoveFromCart(item.id)}
                       className="p-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors duration-300"
                       title="Remove from cart"
                     >
                       <FaTrash />
                     </button>
-
-                 
-                    <div className="text-[#00FF40] font-bold text-xl">
-                      RS {item.course_details?.course_price || 0}  
-                    </div>
                   </div>
                 </div>
               ))}
-
               <div className="mt-8 border-t border-gray-700 pt-6">
                 <div className="flex justify-between items-center mb-6">
                   <span className="text-xl text-white">Total:</span>
@@ -229,7 +188,6 @@ const CartPage = () => {
                     RS {totalPrice}
                   </span>
                 </div>
-
                 <button
                   onClick={handleCheckout}
                   className="bg-[#00FF40] hover:bg-[#00DD30] text-black font-bold py-2 px-6 rounded-md transition duration-300"
@@ -241,8 +199,6 @@ const CartPage = () => {
           </div>
         )}
       </div>
-
-      {/* Footer */}
       <footer className="bg-gray-900 py-8 mt-16">
         <div className="container mx-auto px-4 text-center text-gray-400">
           <p>© 2024 GyanSort. All rights reserved.</p>
@@ -252,5 +208,4 @@ const CartPage = () => {
   );
 };
 
-// This line is crucial - make sure it exists and the name matches
 export default CartPage;
