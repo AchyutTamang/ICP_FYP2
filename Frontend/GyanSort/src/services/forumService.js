@@ -56,15 +56,13 @@ const forumService = {
     }
   },
 
-  getForumParticipants: (forumId) =>
-    api.get(`/forums/participants/?forum=${forumId}`),
+  // getForumParticipants: (forumId) =>
+  //   api.get(`/forums/participants/?forum=${forumId}`),
 
-  // Fix: Add proper data extraction
   getForumParticipants: async (forumId) => {
     const response = await api.get(`/forums/participants/?forum=${forumId}`);
     return response.data || [];
   },
-
   isForumMember: async (forumId) => {
     try {
       const userId =

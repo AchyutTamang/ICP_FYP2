@@ -471,21 +471,10 @@ class ForumParticipantViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
-        user = self.request.user
         forum_id = self.request.query_params.get('forum')
-        
         try:
             forum = Forum.objects.get(id=forum_id)
-            
-            # Instructors can see all ACTIVE participants of forums they created
-            if hasattr(user, 'instructor') and forum.created_by == user.instructor:
-                return ForumMembership.objects.filter(forum=forum, is_active=True)
-            
-            # Students can see ACTIVE participants if they are members
-            if hasattr(user, 'student') and forum.memberships.filter(student=user.student, is_active=True).exists():
-                return ForumMembership.objects.filter(forum=forum, is_active=True)
-            
-            return ForumMembership.objects.none()
-            
+            # Show all participants regardless of is_active status
+            return ForumMembership.objects.filter(forum=forum)
         except Forum.DoesNotExist:
             return ForumMembership.objects.none()
