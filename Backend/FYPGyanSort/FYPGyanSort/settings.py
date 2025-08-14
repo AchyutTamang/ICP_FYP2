@@ -291,9 +291,11 @@ KHALTI_SECRET_KEY = os.getenv('KHALTI_SECRET_KEY')
 
 ESEWA_MERCHANT_CODE = "EPAYTEST"  # For testing; use your REAL code for production
 ESEWA_SECRET_KEY = "8gBm/&cEnhH.1/q"  # From Image 2, for UAT/testing
-ESEWA_SUCCESS_URL = "http://localhost:5173/payment/esewa-success"
-ESEWA_FAILURE_URL = "http://localhost:5173/payment/esewa-failure"
-
+# ESEWA_SUCCESS_URL = "http://localhost:5173/payment/esewa-success"
+# ESEWA_FAILURE_URL = "http://localhost:5173/payment/esewa-failure"
+# https://b7e4dea85032.ngrok-free.app
+ESEWA_SUCCESS_URL = "https://b7e4dea85032.ngrok-free.app/esewa-success/"
+ESEWA_FAILURE_URL = "https://b7e4dea85032.ngrok-free.app/esewa-failure/"
 # Add these Jet settings
 JET_SIDE_MENU_COMPACT = True
 JET_DEFAULT_THEME = 'light-gray'

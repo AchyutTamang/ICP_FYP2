@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from payments import views as payment_views
 
 urlpatterns = [
     # path('jet/', include('jet.urls', 'jet')),  # Django JET URLS
@@ -11,6 +12,8 @@ urlpatterns = [
     path('api/instructors/', include('instructors.urls')),
     path('api/courses/', include('courses.urls')),
     path('api/cart/', include('cart.urls')),
+    path('esewa-success/', payment_views.esewa_success, name='esewa-success'),
+    path('esewa-failure/', payment_views.esewa_failure, name='esewa-failure'),
     path('api/payments/', include('payments.urls')),  
     path('api/forums/', include('forums.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

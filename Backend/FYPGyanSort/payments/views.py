@@ -1,34 +1,37 @@
+import time
 import requests
 from django.conf import settings
+from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from .models import EsewaPayment
-from .serializers import EsewaPaymentSerializer
+
+# Utility: Generate a unique pid for every payment attempt
+def make_unique_pid(user_id, product_id, amount):
+    return f"{user_id}-{product_id}-{amount}-{int(time.time() * 1000)}"
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def initiate_esewa_payment(request):
     """
-    Initiates eSewa payment and provides the payment URL for browser redirection.
+    Initiates eSewa payment, returns redirect URL
     """
-    print("eSewa payment API called by user:", request.user)
-    print("Request data:", request.data)
-
     try:
         total_amount = int(request.data.get('amount'))
         product_id = request.data.get('product_id')
-        # pid must be unique for each payment
-        transaction_uuid = f"{request.user.id}-{product_id}-{total_amount}-{EsewaPayment.objects.count() + 1}"
+        transaction_uuid = make_unique_pid(request.user.id, product_id, total_amount)
         product_code = getattr(settings, 'ESEWA_MERCHANT_CODE', 'EPAYTEST')
 
-        # Save payment attempt in your database
         payment = EsewaPayment.objects.create(
             user_email=request.user.email,
             user_id=request.user.id,
             product_id=product_id,
             transaction_uuid=transaction_uuid,
             amount=total_amount,
+            status='pending',
+            created_at=timezone.now(),
+            updated_at=timezone.now(),
         )
 
         params = {
@@ -39,10 +42,11 @@ def initiate_esewa_payment(request):
             "tAmt": total_amount,
             "pid": transaction_uuid,
             "scd": product_code,
-            "su": getattr(settings, 'ESEWA_SUCCESS_URL', 'http://localhost:5173/payment/esewa-success'),
-            "fu": getattr(settings, 'ESEWA_FAILURE_URL', 'http://localhost:5173/payment/esewa-failure'),
+            # "su": getattr(settings, 'ESEWA_SUCCESS_URL', 'https://YOUR_PUBLIC_DOMAIN/esewa-success/'),
+            # "fu": getattr(settings, 'ESEWA_FAILURE_URL', 'https://YOUR_PUBLIC_DOMAIN/esewa-failure/'),
+            "su": settings.ESEWA_SUCCESS_URL,
+            "fu": settings.ESEWA_FAILURE_URL,
         }
-        # Correct browser endpoint for eSewa payment
         esewa_url = "https://rc.esewa.com.np/epay/main"
         redirect_url = f"{esewa_url}?" + '&'.join([f"{k}={v}" for k, v in params.items()])
 
@@ -58,10 +62,12 @@ def initiate_esewa_payment(request):
 @permission_classes([AllowAny])
 def esewa_success(request):
     """
-    Handle eSewa success URL. Always verify payment with eSewa before marking success.
+    Handle eSewa success URL.
+    Always verify payment with eSewa before marking success.
     """
+    print("HIT: esewa_success")
     amt = request.GET.get('amt') or request.POST.get('amt')
-    oid = request.GET.get('oid') or request.POST.get('oid')    # This should match our pid/transaction_uuid
+    oid = request.GET.get('oid') or request.POST.get('oid')    # pid/transaction_uuid
     ref_id = request.GET.get('refId') or request.POST.get('refId')
     product_code = getattr(settings, 'ESEWA_MERCHANT_CODE', 'EPAYTEST')
 
@@ -75,16 +81,18 @@ def esewa_success(request):
     }
     esewa_response = requests.post(url, data=params)
     result = esewa_response.text
+    print("eSewa verify response (success):", result)
 
-    # Update your local payment record
     try:
         payment = EsewaPayment.objects.get(transaction_uuid=oid)
         payment.status = "success" if "Success" in result else "failed"
         payment.ref_id = ref_id
         payment.raw_response = result
+        payment.updated_at = timezone.now()
         payment.save()
+        print(f"Updated EsewaPayment {payment.id} status to {payment.status}")
     except EsewaPayment.DoesNotExist:
-        pass
+        print(f"EsewaPayment with transaction_uuid {oid} not found")
 
     return Response({
         "payment_status": "success" if "Success" in result else "failed",
@@ -97,18 +105,20 @@ def esewa_failure(request):
     """
     Handle eSewa failure/cancel URL.
     """
+    print("HIT: esewa_failure")
     amt = request.GET.get('amt') or request.POST.get('amt')
     oid = request.GET.get('oid') or request.POST.get('oid')
     ref_id = request.GET.get('refId') or request.POST.get('refId')
 
-    # Optionally update payment record as failed/cancelled
     try:
         payment = EsewaPayment.objects.get(transaction_uuid=oid)
         payment.status = "failed"
         payment.ref_id = ref_id
+        payment.updated_at = timezone.now()
         payment.save()
+        print(f"Updated EsewaPayment {payment.id} status to failed")
     except EsewaPayment.DoesNotExist:
-        pass
+        print(f"EsewaPayment with transaction_uuid {oid} not found")
 
     return Response({
         "payment_status": "failed"
@@ -118,13 +128,12 @@ def esewa_failure(request):
 @permission_classes([IsAuthenticated])
 def verify_esewa_payment(request):
     """
-    Verifies eSewa payment status using the server-to-server verification endpoint.
+    Verifies eSewa payment status using server-to-server verification.
     """
     ref_id = request.data.get('refId')
     pid = request.data.get('pid')
     amt = request.data.get('amt')
     payment_id = request.data.get('payment_id')
-
     url = "https://esewa.com.np/epay/transrec"
     params = {
         "amt": amt,
@@ -140,6 +149,7 @@ def verify_esewa_payment(request):
         payment.status = "success" if "Success" in result else "failed"
         payment.ref_id = ref_id
         payment.raw_response = result
+        payment.updated_at = timezone.now()
         payment.save()
     except EsewaPayment.DoesNotExist:
         pass
